@@ -7,6 +7,7 @@ h11==0.16.0
 itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.3
+python-dotenv==1.2.2
 python-engineio==4.13.3
 python-socketio==5.16.3
 simple-websocket==1.1.0

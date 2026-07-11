@@ -11,3 +11,11 @@ The proposed solution is a web-based multiplayer turn-based territory strategy g
 
 # Setting up Dependencies
 Install requirements.txt
+
+# Running Commands
+.venv/bin/python app.py
+http://127.0.0.1:5000 
+
+# If port conflict:
+lsof -nP -iTCP@127.0.0.1:5000 -sTCP:LISTEN
+pkill -f "app.py"
