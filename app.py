@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 
+import db
+
 # Load variables from the .env file
 load_dotenv()
 
@@ -17,6 +19,8 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
 #Utilise socketio for later real time features - init command
 socketio = SocketIO(app, async_mode="threading")
+
+db.init_app(app)
 
 
 @app.route("/")
