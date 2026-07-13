@@ -1,18 +1,31 @@
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+:root,
+:root:not([data-theme="dark"]) {
+    --pico-border-radius: 0;
+    --pico-font-family-sans-serif: Georgia, "Palatino Linotype", Palatino, "Times New Roman", serif;
+    --pico-background-color: #d3bf98;
+    --pico-color: #362a19;
+    --pico-muted-color: #6f5c3c;
+    --pico-h1-color: #23180a;
+    --pico-h2-color: #23180a;
+    --pico-h3-color: #23180a;
+    --pico-h4-color: #23180a;
+    --pico-primary: #8a5a1c;
+    --pico-primary-hover: #b3893c;
+    --pico-primary-background: #163a44;
+    --pico-primary-hover-background: #1f5462;
+    --pico-primary-inverse: #ecdcb6;
+    --pico-form-element-background-color: #f5edd7;
+    --pico-form-element-border-color: #6f5632;
+    --pico-form-element-active-background-color: #f5edd7;
+    --pico-form-element-active-border-color: #b3893c;
+    --pico-form-element-focus-color: #b3893c;
 }
 
 body {
-    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
-    line-height: 1.6;
-    color: #362a19;
     background-color: #d3bf98;
     background-image:
         radial-gradient(circle at 18% 12%, rgba(255, 250, 235, 0.55), rgba(255, 250, 235, 0) 42%),
-        radial-gradient(circle at 82% 78%, rgba(90, 66, 33, 0.18), rgba(90, 66, 33, 0) 45%),
-        radial-gradient(circle at 50% 105%, rgba(70, 52, 26, 0.14), rgba(70, 52, 26, 0) 55%);
+        radial-gradient(circle at 82% 78%, rgba(90, 66, 33, 0.18), rgba(90, 66, 33, 0) 45%);
     background-attachment: fixed;
     min-height: 100vh;
 }
@@ -62,17 +75,11 @@ body {
     padding: 0 1.5rem;
 }
 
-h2 {
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    color: #23180a;
-}
-
 .hello,
 .auth,
 .dashboard {
     max-width: 460px;
-    padding: 2rem 2rem 2.25rem;
+    padding: 2rem;
     background: #ead7b0;
     border: 2px solid #4a3921;
     box-shadow: inset 0 0 0 2px #b3893c, 0 4px 14px rgba(50, 35, 15, 0.3);
@@ -81,66 +88,17 @@ h2 {
 .hello h2,
 .auth h2,
 .dashboard h2 {
-    margin-bottom: 1.25rem;
     padding-bottom: 0.5rem;
     text-transform: uppercase;
     border-bottom: 2px solid #b3893c;
 }
 
-.flashes {
-    list-style: none;
-    max-width: 460px;
-    margin-bottom: 1.5rem;
-}
-
-.flash {
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
-    font-size: 0.95rem;
-    border-radius: 0;
-}
-
-.flash--error {
-    background: #e7d2ab;
-    color: #7c2b22;
-    border: 2px solid #8a2d24;
-}
-
-.flash--success {
-    background: #e7d2ab;
-    color: #3c5322;
-    border: 2px solid #4a6b2e;
-}
-
-.form-field {
-    margin-bottom: 1.15rem;
-}
-
 .form-field label {
-    display: block;
-    margin-bottom: 0.4rem;
     font-size: 0.82rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #4a3921;
-}
-
-.form-field input {
-    width: 100%;
-    padding: 0.65rem 0.75rem;
-    background: #f5edd7;
-    color: #362a19;
-    border: 2px solid #6f5632;
-    border-radius: 0;
-    font-family: inherit;
-    font-size: 1rem;
-}
-
-.form-field input:focus {
-    outline: none;
-    border-color: #b3893c;
-    box-shadow: inset 0 0 0 1px #b3893c;
 }
 
 .form-hint {
@@ -150,46 +108,30 @@ h2 {
     color: #6f5c3c;
 }
 
-.btn {
-    display: inline-block;
-    padding: 0.7rem 1.6rem;
-    background: #163a44;
-    color: #ecdcb6;
-    border: 2px solid #b3893c;
-    border-radius: 0;
-    font-family: inherit;
-    font-size: 0.95rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    cursor: pointer;
+.flashes {
+    list-style: none;
+    max-width: 460px;
+    margin-bottom: 1.5rem;
+    padding: 0;
 }
 
-.btn:hover {
-    background: #1f5462;
-    color: #f3e6c4;
+.flash {
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    background: #e7d2ab;
 }
 
-.auth__alt {
-    margin-top: 1.5rem;
-    font-size: 0.95rem;
+.flash--error {
+    color: #7c2b22;
+    border: 2px solid #8a2d24;
 }
 
-.auth__alt a,
-.hello a,
-.dashboard a {
-    color: #8a5a1c;
-    font-weight: 700;
-}
-
-.auth__alt a:hover,
-.hello a:hover,
-.dashboard a:hover {
-    color: #b3893c;
+.flash--success {
+    color: #3c5322;
+    border: 2px solid #4a6b2e;
 }
 
 .dashboard__note {
-    margin-top: 0.75rem;
     font-style: italic;
     color: #6f5c3c;
 }
