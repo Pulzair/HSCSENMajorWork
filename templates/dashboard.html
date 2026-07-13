@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Battley{% endblock %}
+
+{% block content %}
+<section class="dashboard">
+    <h2>Welcome, {{ g.user['username'] }}</h2>
+    <p>You're logged in. This is your dashboard.</p>
+    <p class="dashboard__note">Creating and joining game lobbies will appear here in the next phase.</p>
+</section>
+{% endblock %}

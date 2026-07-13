@@ -8,10 +8,30 @@
 </head>
 <body>
     <header class="site-header">
-        <h1 class="site-header__logo">Battley</h1>
+        <a href="{{ url_for('index') }}" class="site-header__logo">Battley</a>
+        <nav class="site-header__nav">
+            {% if g.user %}
+                <span class="site-header__user">Hi, {{ g.user['username'] }}</span>
+                <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('auth.logout') }}">Log out</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}">Log in</a>
+                <a href="{{ url_for('auth.register') }}">Register</a>
+            {% endif %}
+        </nav>
     </header>
 
     <main class="site-main">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="flashes">
+                    {% for category, message in messages %}
+                        <li class="flash flash--{{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
         {% block content %}{% endblock %}
     </main>
 

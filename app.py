@@ -3,11 +3,13 @@ Battley
 """
 import os
 import secrets
+from datetime import timedelta
 from dotenv import load_dotenv
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 
 import db
+import auth
 
 # Load variables from the .env file
 load_dotenv()
@@ -17,15 +19,27 @@ app = Flask(__name__)
 # SECRET_KEY to sign Flasks session cookies for security requirements
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
+# Sessions expire after 24 hours of inactivity (design section 9.4).
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=24)
+
 #Utilise socketio for later real time features - init command
 socketio = SocketIO(app, async_mode="threading")
 
 db.init_app(app)
 
+# Register the authentication blueprint (register / login / logout).
+auth.init_app(app)
+
 
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/dashboard")
+@auth.login_required
+def dashboard():
+    return render_template("dashboard.html")
 
 
 if __name__ == "__main__":

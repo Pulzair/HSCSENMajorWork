@@ -30,3 +30,121 @@ body {
 .hello h2 {
     margin-bottom: 0.5rem;
 }
+
+/* --- header nav --- */
+.site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.site-header__logo {
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.site-header__nav a {
+    color: #cdd2f5;
+    text-decoration: none;
+    margin-left: 1rem;
+}
+
+.site-header__nav a:hover {
+    color: #ffffff;
+}
+
+.site-header__user {
+    color: #9aa0c7;
+    margin-right: 0.5rem;
+}
+
+/* --- flash messages --- */
+.flashes {
+    list-style: none;
+    margin-bottom: 1.5rem;
+}
+
+.flash {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.flash--error {
+    background: #fdecea;
+    color: #a12622;
+    border: 1px solid #f5c2c0;
+}
+
+.flash--success {
+    background: #e8f5ec;
+    color: #1e6b3a;
+    border: 1px solid #b7e0c4;
+}
+
+/* --- auth forms + dashboard --- */
+.auth,
+.dashboard {
+    max-width: 420px;
+}
+
+.auth h2,
+.dashboard h2 {
+    margin-bottom: 1.25rem;
+}
+
+.form-field {
+    margin-bottom: 1rem;
+}
+
+.form-field label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 600;
+}
+
+.form-field input {
+    width: 100%;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid #c7c7cf;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+.form-field input:focus {
+    outline: 2px solid #4c5fd5;
+    border-color: #4c5fd5;
+}
+
+.form-hint {
+    margin-top: 0.3rem;
+    font-size: 0.85rem;
+    color: #6b6b76;
+}
+
+.btn {
+    display: inline-block;
+    padding: 0.65rem 1.4rem;
+    background: #4c5fd5;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: #3a4bb0;
+}
+
+.auth__alt {
+    margin-top: 1.25rem;
+    font-size: 0.95rem;
+}
+
+.dashboard__note {
+    margin-top: 0.75rem;
+    color: #6b6b76;
+}
