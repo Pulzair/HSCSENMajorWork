@@ -5,146 +5,191 @@
 }
 
 body {
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    line-height: 1.5;
-    color: #1a1a1a;
-    background: #f4f4f5;
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+    line-height: 1.6;
+    color: #362a19;
+    background-color: #d3bf98;
+    background-image:
+        radial-gradient(circle at 18% 12%, rgba(255, 250, 235, 0.55), rgba(255, 250, 235, 0) 42%),
+        radial-gradient(circle at 82% 78%, rgba(90, 66, 33, 0.18), rgba(90, 66, 33, 0) 45%),
+        radial-gradient(circle at 50% 105%, rgba(70, 52, 26, 0.14), rgba(70, 52, 26, 0) 55%);
+    background-attachment: fixed;
+    min-height: 100vh;
 }
 
-.site-header {
-    padding: 1rem 1.5rem;
-    background: #1a1a2e;
-    color: #ffffff;
-}
-
-.site-header__logo {
-    font-size: 1.25rem;
-}
-
-.site-main {
-    max-width: 960px;
-    margin: 2rem auto;
-    padding: 0 1.5rem;
-}
-
-.hello h2 {
-    margin-bottom: 0.5rem;
-}
-
-/* --- header nav --- */
 .site-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 1rem 1.75rem;
+    background: #163a44;
+    color: #ecdcb6;
+    border-bottom: 4px solid #b3893c;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
 .site-header__logo {
-    color: #ffffff;
+    color: #e4bd63;
     text-decoration: none;
+    font-size: 1.5rem;
     font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
 }
 
 .site-header__nav a {
-    color: #cdd2f5;
+    color: #ecdcb6;
     text-decoration: none;
-    margin-left: 1rem;
+    margin-left: 1.5rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .site-header__nav a:hover {
-    color: #ffffff;
+    color: #e4bd63;
 }
 
 .site-header__user {
-    color: #9aa0c7;
+    color: #b8a980;
     margin-right: 0.5rem;
+    font-style: italic;
 }
 
-/* --- flash messages --- */
+.site-main {
+    max-width: 960px;
+    margin: 2.5rem auto;
+    padding: 0 1.5rem;
+}
+
+h2 {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #23180a;
+}
+
+.hello,
+.auth,
+.dashboard {
+    max-width: 460px;
+    padding: 2rem 2rem 2.25rem;
+    background: #ead7b0;
+    border: 2px solid #4a3921;
+    box-shadow: inset 0 0 0 2px #b3893c, 0 4px 14px rgba(50, 35, 15, 0.3);
+}
+
+.hello h2,
+.auth h2,
+.dashboard h2 {
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    text-transform: uppercase;
+    border-bottom: 2px solid #b3893c;
+}
+
 .flashes {
     list-style: none;
+    max-width: 460px;
     margin-bottom: 1.5rem;
 }
 
 .flash {
     padding: 0.75rem 1rem;
-    border-radius: 6px;
     margin-bottom: 0.5rem;
     font-size: 0.95rem;
+    border-radius: 0;
 }
 
 .flash--error {
-    background: #fdecea;
-    color: #a12622;
-    border: 1px solid #f5c2c0;
+    background: #e7d2ab;
+    color: #7c2b22;
+    border: 2px solid #8a2d24;
 }
 
 .flash--success {
-    background: #e8f5ec;
-    color: #1e6b3a;
-    border: 1px solid #b7e0c4;
-}
-
-/* --- auth forms + dashboard --- */
-.auth,
-.dashboard {
-    max-width: 420px;
-}
-
-.auth h2,
-.dashboard h2 {
-    margin-bottom: 1.25rem;
+    background: #e7d2ab;
+    color: #3c5322;
+    border: 2px solid #4a6b2e;
 }
 
 .form-field {
-    margin-bottom: 1rem;
+    margin-bottom: 1.15rem;
 }
 
 .form-field label {
     display: block;
-    margin-bottom: 0.35rem;
-    font-weight: 600;
+    margin-bottom: 0.4rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #4a3921;
 }
 
 .form-field input {
     width: 100%;
-    padding: 0.6rem 0.7rem;
-    border: 1px solid #c7c7cf;
-    border-radius: 6px;
+    padding: 0.65rem 0.75rem;
+    background: #f5edd7;
+    color: #362a19;
+    border: 2px solid #6f5632;
+    border-radius: 0;
+    font-family: inherit;
     font-size: 1rem;
 }
 
 .form-field input:focus {
-    outline: 2px solid #4c5fd5;
-    border-color: #4c5fd5;
+    outline: none;
+    border-color: #b3893c;
+    box-shadow: inset 0 0 0 1px #b3893c;
 }
 
 .form-hint {
-    margin-top: 0.3rem;
+    margin-top: 0.35rem;
     font-size: 0.85rem;
-    color: #6b6b76;
+    font-style: italic;
+    color: #6f5c3c;
 }
 
 .btn {
     display: inline-block;
-    padding: 0.65rem 1.4rem;
-    background: #4c5fd5;
-    color: #ffffff;
-    border: none;
-    border-radius: 6px;
-    font-size: 1rem;
+    padding: 0.7rem 1.6rem;
+    background: #163a44;
+    color: #ecdcb6;
+    border: 2px solid #b3893c;
+    border-radius: 0;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
     cursor: pointer;
 }
 
 .btn:hover {
-    background: #3a4bb0;
+    background: #1f5462;
+    color: #f3e6c4;
 }
 
 .auth__alt {
-    margin-top: 1.25rem;
+    margin-top: 1.5rem;
     font-size: 0.95rem;
+}
+
+.auth__alt a,
+.hello a,
+.dashboard a {
+    color: #8a5a1c;
+    font-weight: 700;
+}
+
+.auth__alt a:hover,
+.hello a:hover,
+.dashboard a:hover {
+    color: #b3893c;
 }
 
 .dashboard__note {
     margin-top: 0.75rem;
-    color: #6b6b76;
+    font-style: italic;
+    color: #6f5c3c;
 }
