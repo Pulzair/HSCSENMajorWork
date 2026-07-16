@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Game {{ game['join_code'] }} - Battley{% endblock %}
+
+{% block content %}
+<section class="dashboard">
+    <h2>Game In Progress</h2>
+    <p>Game <strong>{{ game['join_code'] }}</strong> started with {{ players|length }} players.</p>
+
+    <ul class="player-list">
+        {% for player in players %}
+        <li class="player">
+            <span class="player__swatch" style="background: {{ player['player_colour'] }}"></span>
+            <span class="player__name">{{ player['username'] }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <p class="dashboard__note">The three-layer map, fog of war and turn engine arrive in Phase 4.</p>
+</section>
+{% endblock %}

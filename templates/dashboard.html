@@ -5,7 +5,21 @@
 {% block content %}
 <section class="dashboard">
     <h2>Welcome, {{ g.user['username'] }}</h2>
-    <p>You're logged in. This is your dashboard.</p>
-    <p class="dashboard__note">Creating and joining game lobbies will appear here in the next phase.</p>
+
+    <h3>Start a game</h3>
+    <p class="form-hint">Creates a private lobby and gives you a code to share.</p>
+    <form method="post" action="{{ url_for('lobby.create') }}">
+        <button type="submit">Create a game</button>
+    </form>
+
+    <h3>Join a game</h3>
+    <form method="post" action="{{ url_for('lobby.join') }}">
+        <div class="form-field">
+            <label for="join_code">Join code</label>
+            <input type="text" id="join_code" name="join_code"
+                   maxlength="6" minlength="6" autocomplete="off" required>
+        </div>
+        <button type="submit" class="secondary">Join game</button>
+    </form>
 </section>
 {% endblock %}

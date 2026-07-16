@@ -6,10 +6,11 @@ import secrets
 from datetime import timedelta
 from dotenv import load_dotenv
 from flask import Flask, render_template
-from flask_socketio import SocketIO
 
 import db
 import auth
+import lobby
+from extensions import socketio
 
 # Load variables from the .env file
 load_dotenv()
@@ -23,12 +24,15 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=24)
 
 #Utilise socketio for later real time features - init command
-socketio = SocketIO(app, async_mode="threading")
+socketio.init_app(app)
 
 db.init_app(app)
 
 # Register the authentication blueprint (register / login / logout).
 auth.init_app(app)
+
+# Register the lobby blueprint (create / join / start games).
+lobby.init_app(app)
 
 
 @app.route("/")

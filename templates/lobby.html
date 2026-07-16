@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Lobby {{ game['join_code'] }} - Battley{% endblock %}
+
+{% block content %}
+<section class="lobby">
+    <h2>Game Lobby</h2>
+
+    <p class="form-hint">Share this code so others can join:</p>
+    <p class="lobby__code">{{ game['join_code'] }}</p>
+
+    <h3>Players ({{ players|length }}/{{ max_players }})</h3>
+    <ul class="player-list">
+        {% for player in players %}
+        <li class="player">
+            <span class="player__swatch" style="background: {{ player['player_colour'] }}"></span>
+            <span class="player__name">{{ player['username'] }}</span>
+            {% if player['is_host'] %}<span class="player__tag">Host</span>{% endif %}
+            {% if is_host and not player['is_host'] %}
+            <form method="post"
+                  action="{{ url_for('lobby.kick', join_code=game['join_code'], user_id=player['user_id']) }}">
+                <button type="submit" class="secondary outline player__kick">Remove</button>
+            </form>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if is_host %}
+        <form method="post" action="{{ url_for('lobby.start', join_code=game['join_code']) }}">
+            <button type="submit" {% if players|length < min_players %}disabled{% endif %}>
+                Start Game
+            </button>
+        </form>
+        {% if players|length < min_players %}
+        <p class="form-hint">You need at least {{ min_players }} players to start.</p>
+        {% endif %}
+    {% else %}
+        <p class="form-hint">Waiting for the host to start the game...</p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('lobby.leave', join_code=game['join_code']) }}">
+        <button type="submit" class="secondary outline">
+            {% if is_host %}Close lobby{% else %}Leave lobby{% endif %}
+        </button>
+    </form>
+</section>
+
+<script>
+    window.BATTLEY_GAME_ID = {{ game['game_id'] }};
+</script>
+<script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lobby.js') }}"></script>
+{% endblock %}

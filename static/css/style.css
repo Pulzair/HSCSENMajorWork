@@ -77,7 +77,8 @@ body {
 
 .hello,
 .auth,
-.dashboard {
+.dashboard,
+.lobby {
     max-width: 460px;
     padding: 2rem;
     background: #ead7b0;
@@ -87,10 +88,72 @@ body {
 
 .hello h2,
 .auth h2,
-.dashboard h2 {
+.dashboard h2,
+.lobby h2 {
     padding-bottom: 0.5rem;
     text-transform: uppercase;
     border-bottom: 2px solid #b3893c;
+}
+
+.lobby h3,
+.dashboard h3 {
+    margin-bottom: 0.25rem;
+    font-size: 1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #4a3921;
+}
+
+.lobby__code {
+    padding: 0.75rem;
+    margin-bottom: 1.5rem;
+    background: #f5edd7;
+    border: 2px solid #6f5632;
+    color: #163a44;
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-align: center;
+}
+
+.player-list {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 1.5rem;
+}
+
+.player {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #c8b183;
+}
+
+.player__swatch {
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid #4a3921;
+    flex-shrink: 0;
+}
+
+.player__tag {
+    padding: 0.1rem 0.4rem;
+    background: #163a44;
+    color: #ecdcb6;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.player form {
+    margin: 0 0 0 auto;
+}
+
+.player__kick {
+    width: auto;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.7rem;
 }
 
 .form-field label {
