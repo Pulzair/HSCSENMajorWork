@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Result - Battley{% endblock %}
+
+{% block content %}
+<section class="game codex">
+    <h2>Game Over</h2>
+    <p class="form-hint">{{ game_map['name'] if game_map else 'Game' }} &middot;
+        {{ game['join_code'] }} &middot; lasted {{ game['current_turn'] }} turns</p>
+
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>Territories</th>
+                    <th>Units</th>
+                    <th>Resources</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for player in players %}
+                <tr>
+                    <td>
+                        <span class="player__swatch" style="background: {{ player['player_colour'] }}"></span>
+                        <strong>{{ player['username'] }}</strong>
+                    </td>
+                    <td>{{ player['territories'] }}</td>
+                    <td>{{ player['units'] }}</td>
+                    <td>{{ player['resources'] }}</td>
+                    <td>
+                        {% if player['username'] == winner_name %}Winner
+                        {% elif player['is_eliminated'] %}Eliminated
+                        {% else %}Survived{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <p><a href="{{ url_for('dashboard') }}">Back to the dashboard</a></p>
+</section>
+{% endblock %}

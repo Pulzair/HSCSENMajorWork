@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Battley{% endblock %}
+
+{% block content %}
+<section class="game codex">
+    <h2>Administrator</h2>
+    <p class="form-hint">Signed in as {{ g.user['username'] }}.</p>
+
+    <h3>Active sessions ({{ sessions|length }})</h3>
+    {% if sessions %}
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Map</th>
+                    <th>Status</th>
+                    <th>Turn</th>
+                    <th>Players</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in sessions %}
+                <tr>
+                    <td><strong>{{ session['join_code'] }}</strong></td>
+                    <td>{{ session['map_name'] or '-' }}</td>
+                    <td>
+                        {{ session['status'] }}
+                        {% if session['winner'] %}<br><em>won by {{ session['winner'] }}</em>{% endif %}
+                    </td>
+                    <td>{{ session['current_turn'] }}</td>
+                    <td>{{ session['player_count'] }}</td>
+                    <td>{{ session['created_at'] }}</td>
+                    <td>
+                        <form method="post"
+                              action="{{ url_for('admin.delete_game', game_id=session['game_id']) }}">
+                            <button type="submit" class="secondary outline player__kick">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="form-hint">No sessions yet.</p>
+    {% endif %}
+
+    <h3>User accounts ({{ accounts|length }})</h3>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Joined</th>
+                    <th>Rep</th>
+                    <th>Games</th>
+                    <th>Admin</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for account in accounts %}
+                <tr>
+                    <td>
+                        <strong>{{ account['username'] }}</strong>
+                        {% if account['user_id'] == g.user['user_id'] %}
+                        <span class="player__tag">You</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ account['email'] }}</td>
+                    <td>{{ account['created_at'] }}</td>
+                    <td>{{ account['reputation'] }}</td>
+                    <td>{{ account['games'] }}</td>
+                    <td>{{ 'Yes' if account['is_admin'] else 'No' }}</td>
+                    <td>
+                        {% if account['user_id'] != g.user['user_id'] %}
+                        <div class="admin-actions">
+                            <form method="post"
+                                  action="{{ url_for('admin.toggle_admin', user_id=account['user_id']) }}">
+                                <button type="submit" class="secondary outline player__kick">
+                                    {{ 'Demote' if account['is_admin'] else 'Promote' }}
+                                </button>
+                            </form>
+                            <form method="post"
+                                  action="{{ url_for('admin.delete_user', user_id=account['user_id']) }}">
+                                <button type="submit" class="secondary outline player__kick">Delete</button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <span class="form-hint">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <p class="dashboard__note">Deleting an account removes its games, units and orders too,
+        as promised in the privacy section of the design.</p>
+</section>
+{% endblock %}

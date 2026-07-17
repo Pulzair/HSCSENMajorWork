@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Unit Roster - Battley{% endblock %}
+
+{% block content %}
+<section class="game codex">
+    <h2>Unit Roster</h2>
+    <p class="form-hint">Every unit is defined in a config file, so this list grows without touching the game code.</p>
+
+    {% for layer, roster in grouped.items() %}
+    <h3>{{ layer|capitalize }}</h3>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Unit</th>
+                    <th>Atk</th>
+                    <th>Def</th>
+                    <th>HP</th>
+                    <th>Move</th>
+                    <th>Vision</th>
+                    <th>Cost</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for unit in roster %}
+                <tr>
+                    <td><strong>{{ unit['name'] }}</strong></td>
+                    <td>{{ unit['attack'] }}</td>
+                    <td>{{ unit['defence'] }}</td>
+                    <td>{{ unit['health'] }}</td>
+                    <td>{{ unit['movement'] }}</td>
+                    <td>{{ unit['vision'] }}</td>
+                    <td>{{ unit['cost'] }}</td>
+                    <td>
+                        {{ unit['description'] }}
+                        {% if unit['layers']|length > 1 %}
+                        <em>Can cross to {{ unit['layers'][1:]|join(' and ') }} at a transition point.</em>
+                        {% endif %}
+                        {% if unit['terrain'] == ['water'] %}
+                        <em>Water only.</em>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</section>
+{% endblock %}

@@ -9,6 +9,27 @@
     <p class="form-hint">Share this code so others can join:</p>
     <p class="lobby__code">{{ game['join_code'] }}</p>
 
+    <h3>Map</h3>
+    {% if is_host %}
+    <form method="post" action="{{ url_for('lobby.settings', join_code=game['join_code']) }}">
+        <div class="form-field">
+            <label for="map_id">Choose a map</label>
+            <select id="map_id" name="map_id">
+                {% for option in all_maps %}
+                <option value="{{ option['map_id'] }}"
+                        {% if game_map and option['map_id'] == game_map['map_id'] %}selected{% endif %}>
+                    {{ option['name'] }} ({{ option['min_players'] }}-{{ option['max_players'] }} players)
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="secondary">Save map</button>
+    </form>
+    {% else %}
+    <p>{{ game_map['name'] if game_map else 'No map chosen yet' }}</p>
+    {% endif %}
+    {% if game_map %}<p class="form-hint">{{ game_map['description'] }}</p>{% endif %}
+
     <h3>Players ({{ players|length }}/{{ max_players }})</h3>
     <ul class="player-list">
         {% for player in players %}

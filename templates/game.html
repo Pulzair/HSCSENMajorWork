@@ -3,19 +3,129 @@
 {% block title %}Game {{ game['join_code'] }} - Battley{% endblock %}
 
 {% block content %}
-<section class="dashboard">
-    <h2>Game In Progress</h2>
-    <p>Game <strong>{{ game['join_code'] }}</strong> started with {{ players|length }} players.</p>
+<section class="game">
+    <h2>{{ game_map['name'] if game_map else 'Game' }}</h2>
+    <p class="form-hint">Game {{ game['join_code'] }} &middot; Turn {{ game['current_turn'] }}
+        &middot; {{ game['global_resources'] }} resources left in the world</p>
 
+    <div class="layer-tabs" role="tablist">
+        {% for layer in layers %}
+        <button type="button" role="tab" class="layer-tab{% if loop.first %} is-active{% endif %}"
+                data-layer="{{ layer }}" aria-selected="{{ 'true' if loop.first else 'false' }}">
+            {{ layer|capitalize }}
+        </button>
+        {% endfor %}
+    </div>
+
+    {% for layer in layers %}
+    <div class="map-layer{% if not loop.first %} is-hidden{% endif %}" data-layer="{{ layer }}">
+        <div class="map-grid" style="grid-template-columns: repeat({{ board['width'] }}, 1fr);">
+            {% for cell in board['grids'][layer] %}
+                {% if not cell %}
+                <div class="cell cell--empty"></div>
+                {% elif cell['state'] == 'hidden' %}
+                <div class="cell cell--hidden" title="Unexplored"></div>
+                {% else %}
+                <div class="cell cell--{{ cell['terrain'] }}{% if cell['state'] == 'explored' %} cell--fogged{% endif %}"
+                     {% if cell['owner_colour'] %}style="box-shadow: inset 0 0 0 3px {{ cell['owner_colour'] }};"{% endif %}
+                     title="{{ cell['terrain']|capitalize }} &middot; {{ cell['resources'] }} resources{% if cell['natural_resource'] %} &middot; {{ cell['natural_resource'] }}{% endif %}{% if cell['improvement'] %} &middot; {{ cell['improvement']['name'] }}{% endif %}{% if cell['owner_name'] %} &middot; held by {{ cell['owner_name'] }}{% endif %}{% if cell['state'] == 'explored' %} &middot; remembered, not in sight{% endif %}{% for unit in cell['units'] %}&#10;{{ unit['name'] }} ({{ unit['health'] }} hp) - {{ unit['owner_name'] }}{% endfor %}">
+                    {% if cell['has_city'] %}<span class="cell__city">&#9632;</span>{% endif %}
+                    {% if cell['improvement'] %}
+                    <span class="cell__improvement">{{ cell['improvement']['name'][0] }}</span>
+                    {% endif %}
+                    {% if cell['natural_resource'] %}
+                    <span class="cell__resource" title="{{ cell['natural_resource'] }}">&#9670;</span>
+                    {% endif %}
+                    {% if cell['units'] %}
+                    <span class="cell__units" style="background: {{ cell['units'][0]['colour'] }}">{{ cell['units']|length }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <h3>Terrain</h3>
+    <ul class="legend">
+        <li><span class="legend__swatch cell--plains"></span>Plains</li>
+        <li><span class="legend__swatch cell--mountain"></span>Mountain</li>
+        <li><span class="legend__swatch cell--water"></span>Water</li>
+        <li><span class="legend__swatch legend__swatch--city">&#9632;</span>City</li>
+        <li><span class="legend__swatch cell--plains cell--fogged"></span>Remembered</li>
+        <li><span class="legend__swatch cell--hidden"></span>Unexplored</li>
+    </ul>
+
+    <h3>Your orders</h3>
+    <p class="form-hint">You have {{ budget }} resources. Orders stay secret until every
+        player has submitted, then they all resolve together.</p>
+
+    {% if submitted %}
+    <p class="orders__locked">Orders locked in for turn {{ game['current_turn'] }}.
+        Waiting for {{ status['total'] - status['ready'] }} more player(s).</p>
+    {% else %}
+    <form method="post" action="{{ url_for('lobby.submit_orders', join_code=game['join_code']) }}">
+        {% for unit in my_units %}
+        <div class="form-field">
+            <label for="unit_{{ unit['unit_id'] }}">
+                {{ unit_specs[unit['unit_type']]['name'] }}
+                ({{ unit['health'] }} hp, {{ unit['layer'] }})
+            </label>
+            <select id="unit_{{ unit['unit_id'] }}" name="unit_{{ unit['unit_id'] }}">
+                {% for token, label in unit_options[unit['unit_id']] %}
+                <option value="{{ token }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endfor %}
+
+        {% for territory_id, choices in city_options.items() %}
+        <div class="form-field">
+            <label for="city_{{ territory_id }}">Produce at {{ tile_names[territory_id] }}</label>
+            <select id="city_{{ territory_id }}" name="city_{{ territory_id }}">
+                {% for token, label in choices %}
+                <option value="{{ token }}" {% if not token %}disabled{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endfor %}
+
+        {% if improve_options %}
+        <h3>Develop your land</h3>
+        {% for territory_id, choices in improve_options.items() %}
+        <div class="form-field">
+            <label for="improve_{{ territory_id }}">{{ tile_names[territory_id] }}</label>
+            <select id="improve_{{ territory_id }}" name="improve_{{ territory_id }}">
+                {% for token, label in choices %}
+                <option value="{{ token }}" {% if not token %}disabled{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <button type="submit">Submit orders</button>
+    </form>
+    {% endif %}
+
+    <h3>Players ({{ status['ready'] }} of {{ status['total'] }} ready)</h3>
     <ul class="player-list">
         {% for player in players %}
         <li class="player">
             <span class="player__swatch" style="background: {{ player['player_colour'] }}"></span>
             <span class="player__name">{{ player['username'] }}</span>
+            {% if player['user_id'] == g.user['user_id'] %}<span class="player__tag">You</span>{% endif %}
+            {% if player['submitted_turn'] == game['current_turn'] %}
+            <span class="player__tag player__tag--ready">Ready</span>
+            {% endif %}
         </li>
         {% endfor %}
     </ul>
-
-    <p class="dashboard__note">The three-layer map, fog of war and turn engine arrive in Phase 4.</p>
 </section>
+
+<script>
+    window.BATTLEY_GAME_ID = {{ game['game_id'] }};
+</script>
+<script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/game.js') }}"></script>
 {% endblock %}

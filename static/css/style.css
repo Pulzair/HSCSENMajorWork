@@ -65,7 +65,7 @@ body {
 
 .site-header__user {
     color: #b8a980;
-    margin-right: 0.5rem;
+    margin-left: 1.5rem;
     font-style: italic;
 }
 
@@ -73,6 +73,26 @@ body {
     max-width: 960px;
     margin: 2.5rem auto;
     padding: 0 1.5rem;
+}
+
+/* Narrow screens: let the header stack instead of running off the edge. */
+@media (max-width: 720px) {
+    .site-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .site-header__nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 1.25rem;
+    }
+
+    .site-header__nav a,
+    .site-header__user {
+        margin-left: 0;
+    }
 }
 
 .hello,
@@ -95,8 +115,209 @@ body {
     border-bottom: 2px solid #b3893c;
 }
 
+.game {
+    max-width: 760px;
+    padding: 2rem;
+    background: #ead7b0;
+    border: 2px solid #4a3921;
+    box-shadow: inset 0 0 0 2px #b3893c, 0 4px 14px rgba(50, 35, 15, 0.3);
+}
+
+.game h2 {
+    padding-bottom: 0.5rem;
+    text-transform: uppercase;
+    border-bottom: 2px solid #b3893c;
+}
+
+.layer-tabs {
+    display: flex;
+    margin-top: 1.25rem;
+}
+
+.layer-tab {
+    width: auto;
+    padding: 0.5rem 1.25rem;
+    background: #d8c49a;
+    color: #4a3921;
+    border: 2px solid #4a3921;
+    border-bottom: none;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.layer-tab + .layer-tab {
+    border-left: none;
+}
+
+.layer-tab.is-active {
+    background: #163a44;
+    color: #e4bd63;
+}
+
+.map-layer {
+    padding: 0.5rem;
+    margin-bottom: 1.5rem;
+    background: #c9b489;
+    border: 2px solid #4a3921;
+}
+
+.map-layer.is-hidden {
+    display: none;
+}
+
+.map-grid {
+    display: grid;
+    gap: 2px;
+}
+
+.cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    border: 1px solid rgba(74, 57, 33, 0.35);
+    font-size: 0.7rem;
+}
+
+.cell__units {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    min-width: 0.95rem;
+    padding: 0 0.15rem;
+    border: 1px solid #2b1f0e;
+    color: #f5edd7;
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: center;
+}
+
+.table-scroll {
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+}
+
+.table-scroll table {
+    min-width: 660px;
+    margin-bottom: 0;
+    font-size: 0.85rem;
+}
+
+.table-scroll td,
+.table-scroll th {
+    padding: 0.5rem 0.6rem;
+}
+
+.table-scroll em {
+    display: block;
+    color: #6f5c3c;
+}
+
+.table-scroll form {
+    margin: 0;
+}
+
+.admin-actions {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.codex {
+    max-width: 900px;
+}
+
+.cell--plains {
+    background: #cfc48e;
+}
+
+.cell--mountain {
+    background: #a08a6a;
+}
+
+.cell--water {
+    background: #8aa9bd;
+}
+
+.cell--destroyed {
+    background: #7a7168;
+}
+
+.cell--empty {
+    background: transparent;
+    border: none;
+}
+
+.cell--hidden {
+    background: #6b5f4a;
+    border-color: rgba(43, 31, 14, 0.5);
+}
+
+.cell--fogged {
+    filter: grayscale(0.55) brightness(0.78);
+}
+
+.cell__city {
+    color: #2b1f0e;
+    font-size: 0.8rem;
+}
+
+.cell__improvement {
+    position: absolute;
+    left: 1px;
+    top: 0;
+    color: #4a3921;
+    font-size: 0.6rem;
+    font-weight: 700;
+}
+
+.cell__resource {
+    position: absolute;
+    right: 1px;
+    top: 0;
+    color: #8a5a1c;
+    font-size: 0.6rem;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    list-style: none;
+    padding: 0;
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+}
+
+.legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.legend__swatch {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid #4a3921;
+}
+
+.legend__swatch--city {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #cfc48e;
+    font-size: 0.6rem;
+}
+
 .lobby h3,
-.dashboard h3 {
+.dashboard h3,
+.game h3 {
     margin-bottom: 0.25rem;
     font-size: 1rem;
     letter-spacing: 0.06em;
@@ -144,6 +365,18 @@ body {
     font-size: 0.7rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+}
+
+.player__tag--ready {
+    background: #4a6b2e;
+}
+
+.orders__locked {
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    background: #e7d2ab;
+    border: 2px solid #4a6b2e;
+    color: #3c5322;
 }
 
 .player form {

@@ -1,0 +1,59 @@
+{
+    "name": "Twin Valleys",
+    "description": "A compact three-layer arena. A central lake splits the surface, tunnels run beneath it, and sky islands float above.",
+    "min_players": 2,
+    "max_players": 6,
+    "width": 8,
+    "height": 6,
+    "starting_resources": 120,
+    "starting_units": ["warrior", "archer"],
+    "legend": {
+        "P": { "terrain": "plains", "resources": 10 },
+        "M": { "terrain": "mountain", "resources": 6 },
+        "W": { "terrain": "water", "resources": 0 },
+        "R": { "terrain": "plains", "resources": 25 },
+        "I": { "terrain": "mountain", "resources": 6, "natural_resource": "iron" },
+        "H": { "terrain": "plains", "resources": 10, "natural_resource": "horses" },
+        ".": null
+    },
+    "layers": {
+        "land": [
+            "PPIPPIPP",
+            "PRPWWPRP",
+            "MPHWWHPM",
+            "MPPWWPPM",
+            "PRPWWPRP",
+            "PPIPPIPP"
+        ],
+        "underground": [
+            "..MPPM..",
+            ".PPPPPP.",
+            "MPPRRPPM",
+            "MPPRRPPM",
+            ".PPPPPP.",
+            "..MPPM.."
+        ],
+        "sky": [
+            "...PP...",
+            "..PPPP..",
+            ".PP..PP.",
+            ".PP..PP.",
+            "..PPPP..",
+            "...PP..."
+        ]
+    },
+    "transitions": [
+        [2, 2],
+        [5, 3],
+        [1, 1],
+        [6, 4]
+    ],
+    "spawns": [
+        [0, 0],
+        [7, 5],
+        [7, 0],
+        [0, 5],
+        [3, 0],
+        [4, 5]
+    ]
+}

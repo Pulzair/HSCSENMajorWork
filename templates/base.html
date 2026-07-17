@@ -11,8 +11,12 @@
     <header class="site-header">
         <a href="{{ url_for('index') }}" class="site-header__logo">Battley</a>
         <nav class="site-header__nav">
+            <a href="{{ url_for('unit_roster') }}">Roster</a>
             {% if g.user %}
                 <span class="site-header__user">Hi, {{ g.user['username'] }}</span>
+                {% if g.user['is_admin'] %}
+                <a href="{{ url_for('admin.dashboard') }}">Admin</a>
+                {% endif %}
                 <a href="{{ url_for('dashboard') }}">Dashboard</a>
                 <a href="{{ url_for('auth.logout') }}">Log out</a>
             {% else %}

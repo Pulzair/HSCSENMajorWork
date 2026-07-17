@@ -1,0 +1,256 @@
+{
+    "warrior": {
+        "name": "Warrior",
+        "layers": [
+            "land"
+        ],
+        "terrain": [
+            "plains",
+            "mountain"
+        ],
+        "attack": 6,
+        "defence": 6,
+        "health": 30,
+        "movement": 1,
+        "vision": 1,
+        "cost": 25,
+        "description": "Cheap frontline melee. The backbone of an early army and the only unit most players can afford on turn one."
+    },
+    "archer": {
+        "name": "Archer",
+        "layers": [
+            "land"
+        ],
+        "terrain": [
+            "plains",
+            "mountain"
+        ],
+        "attack": 9,
+        "defence": 4,
+        "health": 25,
+        "movement": 1,
+        "vision": 1,
+        "cost": 35,
+        "description": "Hits hard but folds under a counter-attack. Best kept behind a Warrior."
+    },
+    "horseman": {
+        "name": "Horseman",
+        "layers": [
+            "land"
+        ],
+        "terrain": [
+            "plains"
+        ],
+        "attack": 8,
+        "defence": 5,
+        "health": 30,
+        "movement": 2,
+        "vision": 2,
+        "cost": 45,
+        "requires": "horses",
+        "description": "Fast flanker that cannot climb mountains. Punishes undefended territory."
+    },
+    "catapult": {
+        "name": "Catapult",
+        "layers": [
+            "land"
+        ],
+        "terrain": [
+            "plains"
+        ],
+        "attack": 14,
+        "defence": 3,
+        "health": 25,
+        "movement": 1,
+        "vision": 1,
+        "cost": 60,
+        "requires": "iron",
+        "description": "Siege engine built to crack cities. Nearly helpless if caught in the open."
+    },
+    "trireme": {
+        "name": "Trireme",
+        "layers": [
+            "land"
+        ],
+        "terrain": [
+            "water"
+        ],
+        "attack": 7,
+        "defence": 6,
+        "health": 30,
+        "movement": 2,
+        "vision": 2,
+        "cost": 40,
+        "description": "Controls the lake. Cannot leave water, but nothing crosses without answering to it."
+    },
+    "submarine": {
+        "name": "Submarine",
+        "layers": [
+            "land"
+        ],
+        "terrain": [
+            "water"
+        ],
+        "attack": 12,
+        "defence": 4,
+        "health": 30,
+        "movement": 2,
+        "vision": 2,
+        "cost": 70,
+        "requires": "iron",
+        "description": "Runs silent beneath the surface. Strikes first and hard, but cannot take a hit."
+    },
+    "skimmer": {
+        "name": "Sky Skimmer",
+        "layers": [
+            "sky"
+        ],
+        "terrain": [
+            "plains"
+        ],
+        "attack": 4,
+        "defence": 3,
+        "health": 20,
+        "movement": 3,
+        "vision": 3,
+        "cost": 35,
+        "description": "Fast, fragile scout. Bought to see, not to fight - the cheapest way to burn off fog."
+    },
+    "airship": {
+        "name": "Airship",
+        "layers": [
+            "sky"
+        ],
+        "terrain": [
+            "plains"
+        ],
+        "attack": 11,
+        "defence": 7,
+        "health": 40,
+        "movement": 2,
+        "vision": 2,
+        "cost": 70,
+        "description": "The workhorse gunship of the sky lanes. Solid attack, solid armour, no bad matchups."
+    },
+    "dropship": {
+        "name": "Dropship",
+        "layers": [
+            "sky",
+            "land"
+        ],
+        "terrain": [
+            "plains",
+            "mountain"
+        ],
+        "attack": 2,
+        "defence": 9,
+        "health": 45,
+        "movement": 2,
+        "vision": 1,
+        "cost": 65,
+        "description": "Armoured transport that can descend to the surface at a transition point. Almost no attack - it exists to move and survive."
+    },
+    "stormcaller": {
+        "name": "Stormcaller",
+        "layers": [
+            "sky"
+        ],
+        "terrain": [
+            "plains"
+        ],
+        "attack": 15,
+        "defence": 4,
+        "health": 30,
+        "movement": 1,
+        "vision": 1,
+        "cost": 85,
+        "description": "Aerial artillery. Devastating from above and slow to reposition."
+    },
+    "tunneler": {
+        "name": "Tunneler",
+        "layers": [
+            "underground",
+            "land"
+        ],
+        "terrain": [
+            "plains",
+            "mountain"
+        ],
+        "attack": 4,
+        "defence": 8,
+        "health": 35,
+        "movement": 2,
+        "vision": 1,
+        "cost": 50,
+        "description": "Subterranean transport that surfaces at transition points. Tough, but a poor attacker."
+    },
+    "dire_bat": {
+        "name": "Dire Bat",
+        "layers": [
+            "underground",
+            "sky"
+        ],
+        "terrain": [
+            "plains",
+            "mountain"
+        ],
+        "attack": 5,
+        "defence": 3,
+        "health": 18,
+        "movement": 3,
+        "vision": 3,
+        "cost": 30,
+        "description": "Boils out of the caves and into the sky. The only unit that scouts two layers."
+    },
+    "basilisk": {
+        "name": "Basilisk",
+        "layers": [
+            "underground"
+        ],
+        "terrain": [
+            "plains",
+            "mountain"
+        ],
+        "attack": 13,
+        "defence": 6,
+        "health": 40,
+        "movement": 1,
+        "vision": 1,
+        "cost": 75,
+        "description": "Its gaze turns the tunnels to stone. Slow, blind above ground, lethal below it."
+    },
+    "stone_golem": {
+        "name": "Stone Golem",
+        "layers": [
+            "underground"
+        ],
+        "terrain": [
+            "plains",
+            "mountain"
+        ],
+        "attack": 9,
+        "defence": 12,
+        "health": 60,
+        "movement": 1,
+        "vision": 1,
+        "cost": 80,
+        "description": "Quarried, not born. The hardest thing to shift out of a tunnel in the game."
+    },
+    "cave_wyrm": {
+        "name": "Cave Wyrm",
+        "layers": [
+            "underground"
+        ],
+        "terrain": [
+            "plains",
+            "mountain"
+        ],
+        "attack": 16,
+        "defence": 5,
+        "health": 50,
+        "movement": 2,
+        "vision": 2,
+        "cost": 95,
+        "description": "The deep's apex predator. Hits harder than anything else in the world and costs accordingly."
+    }
+}

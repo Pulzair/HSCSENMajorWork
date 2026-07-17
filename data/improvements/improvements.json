@@ -1,0 +1,38 @@
+{
+    "farm": {
+        "name": "Farm",
+        "layers": ["land"],
+        "terrain": ["plains"],
+        "cost": 30,
+        "resource_bonus": 5,
+        "allows_production": false,
+        "description": "Works the soil of a plains tile inside your borders, raising what it yields every turn."
+    },
+    "mine": {
+        "name": "Mine",
+        "layers": ["land", "underground"],
+        "terrain": ["mountain"],
+        "cost": 40,
+        "resource_bonus": 8,
+        "allows_production": false,
+        "description": "Cuts into a mountain. The richest improvement in the game, but mountains are scarce."
+    },
+    "quarry": {
+        "name": "Quarry",
+        "layers": ["underground"],
+        "terrain": ["plains"],
+        "cost": 35,
+        "resource_bonus": 6,
+        "allows_production": false,
+        "description": "Strips stone from the tunnels. Only pays out below ground."
+    },
+    "barracks": {
+        "name": "Barracks",
+        "layers": ["land", "underground", "sky"],
+        "terrain": ["plains", "mountain"],
+        "cost": 60,
+        "resource_bonus": 0,
+        "allows_production": true,
+        "description": "A military district on its own tile. Units can be built here as well as at your city, so your army no longer has to come from one place."
+    }
+}
