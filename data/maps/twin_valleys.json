@@ -6,6 +6,7 @@
     "width": 8,
     "height": 6,
     "starting_resources": 120,
+    "victory_territory_share": 0.4,
     "starting_units": ["warrior", "archer"],
     "legend": {
         "P": { "terrain": "plains", "resources": 10 },
