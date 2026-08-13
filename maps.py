@@ -8,21 +8,10 @@ import improvements
 import units
 from db import get_db
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONSTANTS
-# ═══════════════════════════════════════════════════════════════════════════
-# Maps are JSON tilemaps in data/maps/ - one row string per grid row, per layer,
-# decoded through the map's own legend. Adding a map = drop in a file and run
-# `flask load-maps`, no code changes (NF09). Adjacency gets worked out from the
-# grid instead of being stored, which keeps the configs short enough to hand edit.
 MAPS_DIR = Path(__file__).resolve().parent / "data" / "maps"
 
 LAYERS = ("land", "underground", "sky")  # order matters, vertical links use it
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PARSING
-# ═══════════════════════════════════════════════════════════════════════════
 def read_config_files():
     configs = []
     for path in sorted(MAPS_DIR.glob("*.json")):
@@ -38,8 +27,6 @@ def parse_layout(config):
     grid = {layer: {} for layer in LAYERS}
     ref = 0
 
-    # Refs go layer, then row, then column, always in that order, so the same
-    # config always gives the same map_territory_ref numbers
     for layer in LAYERS:
         for y, row in enumerate(config["layers"].get(layer, [])):
             for x, symbol in enumerate(row):
@@ -80,8 +67,6 @@ def build_adjacency(layout):
                 if neighbour is not None:
                     adjacency[ref].add(neighbour)
 
-    # Vertical links, but only where the map says there's a transition. This is
-    # what stitches the three layers into one world instead of three islands
     for x, y in layout["config"].get("transitions", []):
         land = grid["land"].get((x, y))
         underground = grid["underground"].get((x, y))
@@ -98,10 +83,6 @@ def get_layout(map_row):
     return parse_layout(json.loads(map_row["layout_json"]))
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# LOADING INTO THE DB
-# ═══════════════════════════════════════════════════════════════════════════
-# Push every config file into the Map table, matching on name.
 def sync_maps():
     db = get_db()
     names = []
@@ -211,10 +192,6 @@ def seed_territories(db, game_id, map_row):
         "UPDATE Game SET global_resources = ? WHERE game_id = ?", (total, game_id)
     )
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# RENDERING
-# ═══════════════════════════════════════════════════════════════════════════
 def build_board(db, game, map_row, viewer_id):
     """Cells per layer, row by row, fogged for whoever's looking (FR10, FR11)."""
     layout = get_layout(map_row)
@@ -315,14 +292,8 @@ def build_board(db, game, map_row, viewer_id):
         "visible": visible,
     }
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# CLI
-# ═══════════════════════════════════════════════════════════════════════════
 @click.command("load-maps")
 def load_maps_command():
-    # Remember the Map table holds a COPY of the config, so editing a json file
-    # does nothing at all until this is run again. Got me once already
     names = sync_maps()
     click.echo(f"Loaded {len(names)} map(s): {', '.join(names)}")
 
