@@ -12,9 +12,6 @@ import maps
 import units
 from extensions import socketio
 
-# ═══════════════════════════════════════════════════════════════════════════
-# SETUP
-# ═══════════════════════════════════════════════════════════════════════════
 # Load variables from the .env file
 load_dotenv()
 
@@ -30,9 +27,6 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=24)
 socketio.init_app(app)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# BLUEPRINTS AND COMMANDS
-# ═══════════════════════════════════════════════════════════════════════════
 db.init_app(app)
 
 # Register the authentication blueprint (register / login / logout).
@@ -53,10 +47,6 @@ def forbidden(error):
     # Unauthorised action: return 403 and show a notification (section 9.3).
     return render_template("403.html"), 403
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# ROUTES
-# ═══════════════════════════════════════════════════════════════════════════
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -74,9 +64,10 @@ def unit_roster():
     return render_template("units.html", grouped=units.roster_by_layer())
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# RUN IT
-# ═══════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
-    # allow_unsafe_werkzeug for ease of dev testing
-    socketio.run(app, host="127.0.0.1", port=5000, debug=True, allow_unsafe_werkzeug=True)
+    host = os.environ.get("FLASK_HOST", "127.0.0.1")
+    port = int(os.environ.get("FLASK_PORT", 5000))
+
+    debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes", "on")
+
+    socketio.run(app, host=host, port=port, debug=debug)
