@@ -18,6 +18,8 @@ CREATE TABLE User (
     email          TEXT    NOT NULL UNIQUE
                           CHECK (length(email) <= 254),
     password_hash  TEXT    NOT NULL,
+    bio            TEXT    NOT NULL DEFAULT ''
+                          CHECK (length(bio) <= 160),
     created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
     reputation     INTEGER NOT NULL DEFAULT 50
                           CHECK (reputation BETWEEN 0 AND 100),

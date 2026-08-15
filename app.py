@@ -2,15 +2,16 @@ import os
 import secrets
 from datetime import timedelta
 from dotenv import load_dotenv
-from flask import Flask, render_template
+from flask import Flask, g, render_template
 
 import db
 import admin
+import history
 import auth
 import lobby
 import maps
 import units
-from extensions import socketio
+from extensions import limiter, socketio
 
 load_dotenv()
 
@@ -21,6 +22,8 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=24)
 
 socketio.init_app(app)
+
+limiter.init_app(app)
 
 db.init_app(app)
 
@@ -43,6 +46,11 @@ def not_found(error):
     return render_template("404.html"), 404
 
 
+@app.errorhandler(429)
+def too_many_requests(error):
+    return render_template("429.html"), 429
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -51,7 +59,17 @@ def index():
 @app.route("/dashboard")
 @auth.login_required
 def dashboard():
-    return render_template("dashboard.html")
+    conn = db.get_db()
+    return render_template(
+        "dashboard.html",
+        stats=history.summary(conn, g.user["user_id"]),
+        recent=history.recent(conn, g.user["user_id"]),
+    )
+
+
+@app.route("/how-to")
+def how_to():
+    return render_template("how_to.html")
 
 
 @app.route("/units")

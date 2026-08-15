@@ -8,6 +8,7 @@ from flask import (
 from flask_bcrypt import Bcrypt
 
 from db import get_db
+from extensions import limiter
 
 bp = Blueprint("auth", __name__)
 
@@ -16,6 +17,8 @@ bcrypt = Bcrypt()
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,32}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MIN_PASSWORD_LENGTH = 8
+MAX_BIO_LENGTH = 160
+AUTH_RATE_LIMIT = "10 per minute"
 
 
 def init_app(app):
@@ -30,7 +33,8 @@ def load_logged_in_user():
         g.user = None
     else:
         g.user = get_db().execute(
-            "SELECT user_id, username, email, is_admin FROM User WHERE user_id = ?",
+            "SELECT user_id, username, email, bio, reputation, created_at, is_admin"
+            " FROM User WHERE user_id = ?",
             (user_id,),
         ).fetchone()
 
@@ -45,6 +49,7 @@ def login_required(view):
 
 
 @bp.route("/register", methods=("GET", "POST"))
+@limiter.limit(AUTH_RATE_LIMIT, methods=["POST"])
 def register():
     if g.user:
         return redirect(url_for("dashboard"))
@@ -91,6 +96,7 @@ def register():
 
 
 @bp.route("/login", methods=("GET", "POST"))
+@limiter.limit(AUTH_RATE_LIMIT, methods=["POST"])
 def login():
     if g.user:
         return redirect(url_for("dashboard"))
@@ -118,3 +124,68 @@ def logout():
     session.clear()
     flash("You have been logged out.", "success")
     return redirect(url_for("index"))
+
+
+@bp.route("/profile", methods=("GET", "POST"))
+@login_required
+def profile():
+    db = get_db()
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        bio = request.form.get("bio", "").strip()
+        current = request.form.get("current_password", "")
+        new_password = request.form.get("new_password", "")
+
+        errors = []
+        if not USERNAME_RE.match(username):
+            errors.append("Usernames are 3 to 32 letters, numbers or underscores.")
+        if not EMAIL_RE.match(email) or len(email) > 254:
+            errors.append("That does not look like an email address.")
+        if len(bio) > MAX_BIO_LENGTH:
+            errors.append(f"Your bio must be {MAX_BIO_LENGTH} characters or fewer.")
+
+        changing_password = bool(new_password)
+        if changing_password and len(new_password) < MIN_PASSWORD_LENGTH:
+            errors.append(f"Passwords must be at least {MIN_PASSWORD_LENGTH} characters.")
+
+        row = db.execute(
+            "SELECT password_hash FROM User WHERE user_id = ?", (g.user["user_id"],)
+        ).fetchone()
+        identity_changed = (
+            username != g.user["username"] or email != g.user["email"]
+        )
+        if (identity_changed or changing_password) and not bcrypt.check_password_hash(
+            row["password_hash"], current
+        ):
+            errors.append("Enter your current password to change those details.")
+
+        if errors:
+            for error in errors:
+                flash(error, "error")
+            return render_template("auth/profile.html")
+
+        try:
+            db.execute(
+                "UPDATE User SET username = ?, email = ?, bio = ? WHERE user_id = ?",
+                (username, email, bio, g.user["user_id"]),
+            )
+            if changing_password:
+                db.execute(
+                    "UPDATE User SET password_hash = ? WHERE user_id = ?",
+                    (
+                        bcrypt.generate_password_hash(new_password).decode("utf-8"),
+                        g.user["user_id"],
+                    ),
+                )
+            db.commit()
+        except sqlite3.IntegrityError:
+            db.rollback()
+            flash("That username or email is already taken.", "error")
+            return render_template("auth/profile.html")
+
+        flash("Profile updated.", "success")
+        return redirect(url_for("auth.profile"))
+
+    return render_template("auth/profile.html")

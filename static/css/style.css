@@ -491,3 +491,97 @@ body {
 }
 
 .deal-form button { grid-column: 1 / -1; }
+
+.record {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.record__stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.6rem 0.4rem;
+    border-radius: 6px;
+    background: var(--pico-card-background-color, #f6f6f6);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.record__value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.match {
+    border: 1px solid var(--pico-muted-border-color, #ddd);
+    border-left: 4px solid var(--pico-muted-border-color, #ddd);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.match--won { border-left-color: #2a9d8f; }
+
+.match__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.match__meta { color: var(--pico-muted-color, #777); font-size: 0.85rem; }
+.match__result { margin-left: auto; font-weight: 700; }
+
+.match__table { margin: 0; font-size: 0.9rem; }
+.match__table th, .match__table td { padding: 0.3rem 0.5rem; }
+.match__row--me { font-weight: 700; }
+
+.match__crown, .match__out {
+    font-size: 0.75rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 8px;
+    margin-left: 0.3rem;
+}
+
+.match__crown { background: #e9c46a; color: #222; }
+.match__out { background: #adb5bd; color: #fff; }
+
+.match__deals { font-size: 0.85rem; color: var(--pico-muted-color, #777); margin: 0.5rem 0 0 0; }
+
+.profile__facts {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.profile__label {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--pico-muted-color, #777);
+}
+
+.how-to__index {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+.how-to__section {
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--pico-muted-border-color, #eee);
+}

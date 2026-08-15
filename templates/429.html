@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Too many attempts - Battley{% endblock %}
+
+{% block content %}
+<section class="auth">
+    <h2>Too many attempts</h2>
+    <p>That was a lot of tries in a short space of time. Wait a minute and go again.</p>
+    <p class="auth__alt"><a href="{{ url_for('auth.login') }}">Back to log in</a></p>
+</section>
+{% endblock %}
