@@ -1,20 +1,11 @@
 import json
 from pathlib import Path
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONSTANTS
-# ═══════════════════════════════════════════════════════════════════════════
 IMPROVEMENTS_DIR = Path(__file__).resolve().parent / "data" / "improvements"
 
 _catalogue = None
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# LOADING
-# ═══════════════════════════════════════════════════════════════════════════
-# FR13 wants "improving cells within borders and the central district". The city
-# is the central district (placed at spawn), everything else a player builds on
-# their own tiles is one of these. Config files again so NF09 holds.
 def load_catalogue(force=False):
     global _catalogue
     if _catalogue is None or force:
@@ -30,9 +21,6 @@ def get(improvement):
     return load_catalogue().get(improvement)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# RULES
-# ═══════════════════════════════════════════════════════════════════════════
 def can_build_on(improvement, layer, terrain):
     spec = get(improvement)
     if spec is None:
@@ -40,7 +28,6 @@ def can_build_on(improvement, layer, terrain):
     return layer in spec["layers"] and terrain in spec["terrain"]
 
 
-# Improvements valid on this kind of tile, cheapest first.
 def options_for(layer, terrain):
     catalogue = load_catalogue()
     keys = [k for k in catalogue if can_build_on(k, layer, terrain)]
@@ -49,7 +36,7 @@ def options_for(layer, terrain):
 
 def allows_production(improvement):
     spec = get(improvement)
-    return bool(spec) and spec.get("allows_production", False)  # barracks basically
+    return bool(spec) and spec.get("allows_production", False)
 
 
 def catalogue_by_layer(layers):

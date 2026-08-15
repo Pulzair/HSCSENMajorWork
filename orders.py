@@ -1,23 +1,9 @@
 import improvements
 import units
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONSTANTS
-# ═══════════════════════════════════════════════════════════════════════════
-# Order writing (FR12, FR14, FR15). Everyone writes privately and nothing anyone
-# else wrote goes near the client until the turn resolves, otherwise the whole
-# simultaneous reveal is just decoration.
-#
-# The legal orders for a unit get worked out on the SERVER and handed to the
-# browser as dumb tokens ("move:42"). On submit the token gets checked against
-# that same freshly built set, so editing the form in devtools gets you nowhere.
-
 HOLD = "hold"
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# LOOKUPS
-# ═══════════════════════════════════════════════════════════════════════════
 def _territories_by_ref(db, game_id):
     rows = db.execute(
         """SELECT territory_id, map_territory_ref, layer, terrain_type, owner_id,
@@ -41,7 +27,6 @@ def _units_by_ref(db, game_id):
     return grouped
 
 
-# Refs where a unit is allowed to change layer, per the map config.
 def transition_refs(layout):
     refs = set()
     for x, y in layout["config"].get("transitions", []):
@@ -52,9 +37,6 @@ def transition_refs(layout):
     return refs
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# WHAT YOU'RE ALLOWED TO DO
-# ═══════════════════════════════════════════════════════════════════════════
 def legal_orders(db, game, user_id, layout, adjacency, visible):
     """Every order this player may legally give, keyed by unit_id."""
     by_ref = _territories_by_ref(db, game["game_id"])
@@ -86,13 +68,10 @@ def legal_orders(db, game, user_id, layout, adjacency, visible):
             ):
                 continue
 
-            # Two neighbours can be the same terrain so name the square by its
-            # grid spot, otherwise the dropdown is just "Move to plains" twice
             spot = layout["territories"][ref]
             where = f"({spot['x']},{spot['y']})"
 
             if target["layer"] != unit["layer"]:
-                # Only units built for it, and only at a transition point
                 if not units.can_transition(unit["unit_type"]):
                     continue
                 if here not in crossings or ref not in crossings:
@@ -107,8 +86,6 @@ def legal_orders(db, game, user_id, layout, adjacency, visible):
                 extra = f", {target['natural_resource']}"
 
             enemies = [u for u in occupants.get(ref, []) if u["owner_id"] != user_id]
-            # Only call it an attack if they can actually see them sitting there.
-            # Fog means you can absolutely walk into a fight you didn't know about
             if enemies and ref in visible:
                 choices.append(
                     (f"attack:{ref}", f"Attack {where} ({len(enemies)} defending)")
@@ -123,7 +100,6 @@ def legal_orders(db, game, user_id, layout, adjacency, visible):
     return options
 
 
-# Strategic resources sitting on tiles this player holds.
 def held_resources(db, game_id, user_id):
     rows = db.execute(
         """SELECT DISTINCT natural_resource FROM Territory
@@ -133,7 +109,6 @@ def held_resources(db, game_id, user_id):
     return {row["natural_resource"] for row in rows}
 
 
-# Where they can build units: the city, plus any Barracks tile (FR13).
 def production_sites(db, game_id, user_id):
     rows = db.execute(
         """SELECT territory_id, layer, terrain_type, has_city, improvement
@@ -147,7 +122,6 @@ def production_sites(db, game_id, user_id):
     ]
 
 
-# Units they can queue at each production site (FR14).
 def build_options(db, game, user_id):
     purse = db.execute(
         "SELECT resources FROM GamePlayer WHERE game_id = ? AND user_id = ?",
@@ -164,8 +138,6 @@ def build_options(db, game, user_id):
             if not units.can_occupy(key, site["layer"], site["terrain_type"]):
                 continue
 
-            # Blank token = shown but greyed out, so they can see what they're
-            # missing instead of the option just vanishing
             needs = spec.get("requires")
             label = f"{spec['name']} ({spec['cost']})"
             if needs and needs not in stock:
@@ -179,7 +151,6 @@ def build_options(db, game, user_id):
     return per_site, budget
 
 
-# Improvements they can queue on tiles they hold (FR13).
 def improvement_options(db, game, user_id):
     purse = db.execute(
         "SELECT resources FROM GamePlayer WHERE game_id = ? AND user_id = ?",
@@ -187,7 +158,6 @@ def improvement_options(db, game, user_id):
     ).fetchone()
     budget = purse["resources"] if purse else 0
 
-    # City tiles are skipped, the central district is already there
     tiles = db.execute(
         """SELECT territory_id, layer, terrain_type, improvement, has_city,
                   resource_value
@@ -217,9 +187,6 @@ def improvement_options(db, game, user_id):
     return per_tile
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# WRITING THEM DOWN
-# ═══════════════════════════════════════════════════════════════════════════
 def clear_orders(db, game_id, user_id, turn):
     db.execute(
         "DELETE FROM Orders WHERE game_id = ? AND player_id = ? AND turn_number = ?",
@@ -235,7 +202,6 @@ def save_orders(db, game, user_id, unit_choices, city_choices, improve_choices,
     buildable, budget = build_options(db, game, user_id)
     improvable = improvement_options(db, game, user_id)
 
-    # --- unit orders ---
     accepted = []
     for unit_id, token in unit_choices.items():
         if unit_id not in legal:
@@ -250,7 +216,6 @@ def save_orders(db, game, user_id, unit_choices, city_choices, improve_choices,
         kind, _, ref = token.partition(":")
         accepted.append((kind, unit_id, int(ref)))
 
-    # --- units to build ---
     spend = 0
     builds = []
     for territory_id, token in city_choices.items():
@@ -267,7 +232,6 @@ def save_orders(db, game, user_id, unit_choices, city_choices, improve_choices,
         spend += units.get_unit(unit_type)["cost"]
         builds.append((territory_id, token))
 
-    # --- tiles to develop ---
     for territory_id, token in improve_choices.items():
         if territory_id not in improvable:
             problems.append("You tried to develop a tile you do not hold.")
@@ -282,7 +246,6 @@ def save_orders(db, game, user_id, unit_choices, city_choices, improve_choices,
         spend += improvements.get(key)["cost"]
         builds.append((territory_id, token))
 
-    # It all comes out of one purse so check the lot together
     if spend > budget:
         problems.append(f"That costs {spend} but you only have {budget} resources.")
 
@@ -318,8 +281,6 @@ def save_orders(db, game, user_id, unit_choices, city_choices, improve_choices,
             ),
         )
 
-    # detail holds "unit:<type>" or "improvement:<type>" so one order_type does
-    # both kinds of construction and the schema doesn't need touching
     for territory_id, token in builds:
         db.execute(
             "INSERT INTO Orders (game_id, player_id, turn_number, order_type,"
@@ -335,10 +296,6 @@ def save_orders(db, game, user_id, unit_choices, city_choices, improve_choices,
     return []
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# READING THEM BACK
-# ═══════════════════════════════════════════════════════════════════════════
-# This player's own orders this turn. Never anyone else's, ever.
 def my_orders(db, game, user_id):
     return db.execute(
         """SELECT o.*, u.unit_type
@@ -349,7 +306,6 @@ def my_orders(db, game, user_id):
     ).fetchall()
 
 
-# Who's locked in this turn. Counts only, never what they picked (FR15).
 def submission_status(db, game):
     rows = db.execute(
         """SELECT gp.user_id, u.username, gp.is_eliminated,

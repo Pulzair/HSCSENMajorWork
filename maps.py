@@ -10,7 +10,8 @@ from db import get_db
 
 MAPS_DIR = Path(__file__).resolve().parent / "data" / "maps"
 
-LAYERS = ("land", "underground", "sky")  # order matters, vertical links use it
+LAYERS = ("land", "underground", "sky")
+
 
 def read_config_files():
     configs = []
@@ -32,7 +33,7 @@ def parse_layout(config):
             for x, symbol in enumerate(row):
                 spec = legend.get(symbol)
                 if spec is None:
-                    continue  # "." = hole, no territory here
+                    continue
                 ref += 1
                 territories[ref] = {
                     "ref":              ref,
@@ -54,12 +55,10 @@ def parse_layout(config):
     }
 
 
-# Every ref mapped to its neighbours.
 def build_adjacency(layout):
     grid = layout["grid"]
     adjacency = {ref: set() for ref in layout["territories"]}
 
-    # Four orthogonal neighbours on the same layer
     for layer in LAYERS:
         for (x, y), ref in grid[layer].items():
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
@@ -87,7 +86,7 @@ def sync_maps():
     db = get_db()
     names = []
     for _filename, config in read_config_files():
-        parse_layout(config)  # blow up now if the config is broken, not mid game
+        parse_layout(config)
         layout_json = json.dumps(config)
         existing = db.execute(
             "SELECT map_id FROM Map WHERE name = ?", (config["name"],)
@@ -121,7 +120,6 @@ def sync_maps():
     return names
 
 
-# Build the whole board for a game that's just started, and hand out spawns.
 def seed_territories(db, game_id, map_row):
     layout = get_layout(map_row)
 
@@ -145,7 +143,6 @@ def seed_territories(db, game_id, map_row):
     ).fetchall()
     config = layout["config"]
 
-    # Everyone gets one spawn tile with a city on it, that's the central district
     for player, (x, y) in zip(players, config.get("spawns", [])):
         ref = layout["grid"]["land"].get((x, y))
         if ref is None:
@@ -161,7 +158,6 @@ def seed_territories(db, game_id, map_row):
             (game_id, ref),
         ).fetchone()
 
-        # Starting army comes out of the map config too, not hardcoded
         for unit_type in config.get("starting_units", []):
             spec = units.get_unit(unit_type)
             if spec is None:
@@ -186,11 +182,11 @@ def seed_territories(db, game_id, map_row):
             (config.get("starting_resources", 0), game_id, player["user_id"]),
         )
 
-    # The finite pool starts as everything the map is worth (FR19)
     total = sum(t["resources"] for t in layout["territories"].values())
     db.execute(
         "UPDATE Game SET global_resources = ? WHERE game_id = ?", (total, game_id)
     )
+
 
 def build_board(db, game, map_row, viewer_id):
     """Cells per layer, row by row, fogged for whoever's looking (FR10, FR11)."""
@@ -209,7 +205,6 @@ def build_board(db, game, map_row, viewer_id):
     ).fetchall()
     state = {row["map_territory_ref"]: row for row in rows}
 
-    # Work out what they can see, then write down that they've seen it (FR11)
     adjacency = build_adjacency(layout)
     fog_modifiers = {r["map_territory_ref"]: r["fog_modifier"] for r in rows}
     visible = fog.compute_visible(db, game["game_id"], viewer_id, adjacency, fog_modifiers)
@@ -222,7 +217,6 @@ def build_board(db, game, map_row, viewer_id):
     )
     explored = fog.explored_refs(db, game["game_id"], viewer_id) | visible
 
-    # Units bucketed onto whatever tile they're standing on
     unit_rows = db.execute(
         """SELECT t.map_territory_ref, u.unit_type, u.health, gp.player_colour,
                   usr.username AS owner_name
@@ -259,7 +253,7 @@ def build_board(db, game, map_row, viewer_id):
 
                 seen_state = fog.state_for(ref, visible, explored)
                 if seen_state == "hidden":
-                    cells.append({"ref": ref, "state": "hidden"})  # tell them nothing
+                    cells.append({"ref": ref, "state": "hidden"})
                     continue
 
                 territory = layout["territories"][ref]
@@ -279,8 +273,6 @@ def build_board(db, game, map_row, viewer_id):
                     ),
                     "owner_colour": current["player_colour"] if current else None,
                     "owner_name": current["owner_name"] if current else None,
-                    # Only report units where they're actually looking. Remembered
-                    # ground must never leak where the enemy is standing right now
                     "units": by_territory.get(ref, []) if seen_state == "visible" else [],
                 })
         grids[layer] = cells
@@ -291,6 +283,7 @@ def build_board(db, game, map_row, viewer_id):
         "grids": grids,
         "visible": visible,
     }
+
 
 @click.command("load-maps")
 def load_maps_command():

@@ -9,29 +9,20 @@ from flask_bcrypt import Bcrypt
 
 from db import get_db
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONSTANTS
-# ═══════════════════════════════════════════════════════════════════════════
 bp = Blueprint("auth", __name__)
 
 bcrypt = Bcrypt()
 
-# These mirror the CHECK rules in schema.sql, just so the user gets a nice
-# message instead of the database yelling at them
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,32}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MIN_PASSWORD_LENGTH = 8
+
 
 def init_app(app):
     bcrypt.init_app(app)
     app.register_blueprint(bp)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# SESSION
-# ═══════════════════════════════════════════════════════════════════════════
-# Runs before every single request and drops the user onto g so templates can
-# just check g.user without every route looking them up
 @bp.before_app_request
 def load_logged_in_user():
     user_id = session.get("user_id")
@@ -53,9 +44,6 @@ def login_required(view):
     return wrapped_view
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# REGISTER / LOGIN / LOGOUT
-# ═══════════════════════════════════════════════════════════════════════════
 @bp.route("/register", methods=("GET", "POST"))
 def register():
     if g.user:
@@ -114,8 +102,6 @@ def login():
             "SELECT * FROM User WHERE email = ?", (email,)
         ).fetchone()
 
-        # Deliberately one vague message for both cases, otherwise you could
-        # sit there working out which emails have accounts
         if user is None or not bcrypt.check_password_hash(user["password_hash"], password):
             flash("Incorrect email or password.", "error")
         else:

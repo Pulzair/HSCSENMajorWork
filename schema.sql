@@ -1,8 +1,3 @@
--- Battley database schema
--- Notes:
---  * SQLite has no BOOLEAN type, so booleans are stored as INTEGER 0/1 with a CHECK.
---  * SQLite has no dedicated DATETIME type; timestamps are TEXT stored in
---    'YYYY-MM-DD HH:MM:SS' format via datetime('now').
 
 DROP TABLE IF EXISTS DisasterTerritory;
 DROP TABLE IF EXISTS DisasterEvent;
@@ -71,9 +66,6 @@ CREATE TABLE GamePlayer (
                           CHECK (is_host IN (0, 1)),
     is_eliminated  INTEGER NOT NULL DEFAULT 0
                           CHECK (is_eliminated IN (0, 1)),
-    -- The turn this player last locked their orders in for. A turn can only
-    -- resolve once every active player's submitted_turn equals current_turn
-    -- (FR15). NULL means they have never submitted.
     submitted_turn INTEGER,
     UNIQUE (game_id, user_id),
     UNIQUE (game_id, player_colour)
@@ -97,11 +89,7 @@ CREATE TABLE Territory (
                               CHECK (terrain_type IN ('plains', 'mountain', 'water', 'destroyed')),
     has_city          INTEGER NOT NULL DEFAULT 0
                               CHECK (has_city IN (0, 1)),
-    -- What the owner has built on this cell (FR13). Free text, because valid
-    -- improvements come from data/improvements/*.json (NF09). NULL = bare land.
     improvement       TEXT,
-    -- A strategic resource sitting on the tile (iron, horses...), set from the
-    -- map config. Some units require their owner to hold one.
     natural_resource  TEXT,
     fog_modifier      REAL    NOT NULL DEFAULT 1.0
                               CHECK (fog_modifier BETWEEN 0.0 AND 1.0)
@@ -110,10 +98,6 @@ CREATE TABLE Territory (
 CREATE INDEX idx_territory_game ON Territory (game_id);
 CREATE INDEX idx_territory_owner ON Territory (owner_id);
 
--- TerritorySeen: which territories a player has ever seen. Current visibility is
--- recomputed live from unit and city positions, but fog of war also has to
--- remember where a player has already been (FR11, "historic movement"), and that
--- history has to live somewhere.
 CREATE TABLE TerritorySeen (
     game_id      INTEGER NOT NULL REFERENCES Game(game_id) ON DELETE CASCADE,
     user_id      INTEGER NOT NULL REFERENCES User(user_id) ON DELETE CASCADE,
@@ -129,8 +113,6 @@ CREATE TABLE Unit (
     game_id       INTEGER NOT NULL REFERENCES Game(game_id) ON DELETE CASCADE,
     owner_id      INTEGER NOT NULL REFERENCES User(user_id) ON DELETE CASCADE,
     territory_id  INTEGER NOT NULL REFERENCES Territory(territory_id) ON DELETE CASCADE,
-    -- No CHECK enum here: valid unit types come from the config files in
-    -- data/units/, so a new unit needs no schema change (NF09).
     unit_type     TEXT    NOT NULL,
     attack        INTEGER NOT NULL CHECK (attack BETWEEN 1 AND 20),
     defence       INTEGER NOT NULL CHECK (defence BETWEEN 1 AND 20),
@@ -150,14 +132,9 @@ CREATE TABLE Orders (
     turn_number      INTEGER NOT NULL CHECK (turn_number >= 1),
     order_type       TEXT    NOT NULL
                              CHECK (order_type IN ('move', 'attack', 'build', 'layer_transition')),
-    -- unit_id and the territory columns are nullable because not every order
-    -- type uses them (e.g. a 'build' order need not act on an existing unit).
     unit_id          INTEGER REFERENCES Unit(unit_id) ON DELETE CASCADE,
     source_territory INTEGER REFERENCES Territory(territory_id) ON DELETE CASCADE,
     target_territory INTEGER REFERENCES Territory(territory_id) ON DELETE CASCADE,
-    -- What the order acts on when the territory columns aren't enough: the unit
-    -- type for a 'build' order, for instance. Free text so config-defined units
-    -- and improvements need no schema change (NF09).
     detail           TEXT,
     status           TEXT    NOT NULL DEFAULT 'pending'
                              CHECK (status IN ('pending', 'resolved', 'cancelled')),

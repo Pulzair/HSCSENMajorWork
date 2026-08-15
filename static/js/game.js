@@ -1,4 +1,3 @@
-// Switches which map layer is visible (land / underground / sky).
 const tabs = document.querySelectorAll(".layer-tab");
 const layers = document.querySelectorAll(".map-layer");
 
@@ -18,7 +17,6 @@ tabs.forEach((tab) => {
     });
 });
 
-// Keeps the board in sync as other players submit and turns resolve.
 if (typeof io !== "undefined" && window.BATTLEY_GAME_ID) {
     const socket = io();
 
@@ -26,12 +24,10 @@ if (typeof io !== "undefined" && window.BATTLEY_GAME_ID) {
         socket.emit("join_lobby", { game_id: window.BATTLEY_GAME_ID });
     });
 
-    // Someone else locked their orders in: refresh the ready count.
     socket.on("orders_update", () => {
         window.location.reload();
     });
 
-    // Everyone submitted and the turn resolved: show the new board.
     socket.on("turn_resolved", () => {
         window.location.reload();
     });

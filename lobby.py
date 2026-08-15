@@ -14,12 +14,6 @@ from auth import login_required
 from db import get_db
 from extensions import socketio
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONSTANTS
-# ═══════════════════════════════════════════════════════════════════════════
-# Private lobbies with 6 char join codes (FR05, FR06), 2-6 players (FR07),
-# host picks the map and can boot people (FR08), needs 2 to start (FR09).
-# Anything that changes gets pushed to everyone over socketio.
 bp = Blueprint("lobby", __name__)
 
 MIN_PLAYERS = 2
@@ -28,24 +22,18 @@ MAX_PLAYERS = 6
 JOIN_CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 JOIN_CODE_RE = re.compile(r"^[A-Z0-9]{6}$")
 
-# One colour per player slot, picked to stay apart for colour blind players
 PLAYER_COLOURS = [
-    "#E63946",  # red
-    "#457B9D",  # blue
-    "#2A9D8F",  # teal
-    "#E9C46A",  # yellow
-    "#8338EC",  # purple
-    "#F4A261",  # orange
+    "#E63946",
+    "#457B9D",
+    "#2A9D8F",
+    "#E9C46A",
+    "#8338EC",
+    "#F4A261",
 ]
 
 
 def init_app(app):
     app.register_blueprint(bp)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# HELPERS
-# ═══════════════════════════════════════════════════════════════════════════
 
 
 def lobby_room(game_id):
@@ -102,22 +90,17 @@ def get_map(db, game):
 
 
 def lobby_capacity(db, game):
-    # Map decides the cap, but never more than we have colours for
     game_map = get_map(db, game)
     if game_map is None:
         return MAX_PLAYERS
     return min(game_map["max_players"], MAX_PLAYERS)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# LOBBY ROUTES
-# ═══════════════════════════════════════════════════════════════════════════
 @bp.route("/lobby/create", methods=("POST",))
 @login_required
 def create():
     db = get_db()
     code = generate_join_code(db)
-    # Start on the first available map; the host can change it in the lobby (FR08).
     default_map = db.execute("SELECT map_id FROM Map ORDER BY map_id LIMIT 1").fetchone()
     cursor = db.execute(
         "INSERT INTO Game (join_code, map_id) VALUES (?, ?)",
@@ -146,10 +129,9 @@ def join():
         flash("Lobby not found.", "error")
         return redirect(url_for("dashboard"))
     if game["status"] != "lobby":
-        flash("That game has already started.", "error")
-        return redirect(url_for("dashboard"))
+        flash("That game has already started. - You may resign only", "error")
+        return redirect(url_for("lobby.game", join_code=code))
 
-    # Already a member: just take them to the lobby.
     players = get_players(db, game["game_id"])
     if find_player(players, g.user["user_id"]):
         return redirect(url_for("lobby.view", join_code=code))
@@ -203,7 +185,6 @@ def view(join_code):
 @bp.route("/lobby/<join_code>/settings", methods=("POST",))
 @login_required
 def settings(join_code):
-    # Host only, and only before it kicks off (FR08)
     code = join_code.upper()
     db = get_db()
     game = get_game(db, code)
@@ -269,7 +250,6 @@ def start(join_code):
     db.execute(
         "UPDATE Game SET status = 'active' WHERE game_id = ?", (game["game_id"],)
     )
-    # Build the board for this game from the chosen map's config.
     maps.seed_territories(db, game["game_id"], game_map)
     db.commit()
     socketio.emit(
@@ -310,19 +290,21 @@ def kick(join_code, user_id):
 @bp.route("/lobby/<join_code>/leave", methods=("POST",))
 @login_required
 def leave(join_code):
-    # If the host walks the whole lobby dies, seems fair enough
     code = join_code.upper()
     db = get_db()
     game = get_game(db, code)
     if game is None:
         return redirect(url_for("dashboard"))
 
+    if game["status"] != "lobby":
+        flash("The game has already started - resign instead.", "error")
+        return redirect(url_for("lobby.game", join_code=code))
+
     me = find_player(get_players(db, game["game_id"]), g.user["user_id"])
     if me is None:
         return redirect(url_for("dashboard"))
 
     if me["is_host"]:
-        # Deleting the game cascades to its GamePlayer rows.
         db.execute("DELETE FROM Game WHERE game_id = ?", (game["game_id"],))
         flash("Lobby closed.", "success")
     else:
@@ -336,9 +318,6 @@ def leave(join_code):
     return redirect(url_for("dashboard"))
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# THE GAME ITSELF
-# ═══════════════════════════════════════════════════════════════════════════
 @bp.route("/game/<join_code>")
 @login_required
 def game(join_code):
@@ -401,12 +380,12 @@ def game(join_code):
         tile_names=tile_labels(db, game_row["game_id"]),
         budget=budget,
         status=status,
+        me_player=find_player(players, me),
         submitted=(find_player(players, me)["submitted_turn"] == game_row["current_turn"]),
         unit_specs=units.load_roster(),
     )
 
 
-# Names for the territories so the order form isn't just numbers.
 def tile_labels(db, game_id):
     rows = db.execute(
         """SELECT territory_id, layer, terrain_type, has_city, natural_resource
@@ -424,7 +403,6 @@ def tile_labels(db, game_id):
     return labels
 
 
-# Final scoreboard for the post game summary (FR27).
 def standings(db, game_id):
     return db.execute(
         """SELECT u.username, gp.player_colour, gp.is_eliminated, gp.resources,
@@ -442,7 +420,6 @@ def standings(db, game_id):
 @bp.route("/game/<join_code>/orders", methods=("POST",))
 @login_required
 def submit_orders(join_code):
-    # Locks their orders in (FR15). If they're the last one in, the turn goes
     code = join_code.upper()
     db = get_db()
     game_row = get_game(db, code)
@@ -489,7 +466,6 @@ def submit_orders(join_code):
             flash(problem, "error")
         return redirect(url_for("lobby.game", join_code=code))
 
-    # Everyone in? Then reveal and resolve all orders together (FR16).
     status = orders.submission_status(db, game_row)
     if status["all_in"]:
         result = resolution.resolve_turn(db, game_row, game_map)
@@ -504,9 +480,90 @@ def submit_orders(join_code):
     return redirect(url_for("lobby.game", join_code=code))
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# SOCKETS
-# ═══════════════════════════════════════════════════════════════════════════
+@bp.route("/game/<join_code>/resign", methods=("POST",))
+@login_required
+def resign(join_code):
+    code = join_code.upper()
+    db = get_db()
+    game_row = get_game(db, code)
+    if game_row is None:
+        flash("Game not found.", "error")
+        return redirect(url_for("dashboard"))
+
+    if game_row["status"] != "active":
+        flash("You can only resign from a game in progress.", "error")
+        return redirect(url_for("dashboard"))
+
+    me = find_player(get_players(db, game_row["game_id"]), g.user["user_id"])
+    if me is None:
+        flash("You are not in that game.", "error")
+        return redirect(url_for("dashboard"))
+    if me["is_eliminated"]:
+        flash("You are already out of this game.", "error")
+        return redirect(url_for("lobby.game", join_code=code))
+
+    game_id = game_row["game_id"]
+    user_id = g.user["user_id"]
+
+    db.execute(
+        "UPDATE GamePlayer SET is_eliminated = 1, submitted_turn = NULL"
+        " WHERE game_id = ? AND user_id = ?",
+        (game_id, user_id),
+    )
+
+    db.execute("DELETE FROM Unit WHERE game_id = ? AND owner_id = ?", (game_id, user_id))
+
+    db.execute(
+        "UPDATE Territory SET owner_id = NULL WHERE game_id = ? AND owner_id = ?",
+        (game_id, user_id),
+    )
+
+    db.execute(
+        "UPDATE Orders SET status = 'cancelled'"
+        " WHERE game_id = ? AND player_id = ? AND status = 'pending'",
+        (game_id, user_id),
+    )
+    db.commit()
+
+    standing = db.execute(
+        """SELECT gp.user_id, u.username FROM GamePlayer gp
+             JOIN User u ON u.user_id = gp.user_id
+            WHERE gp.game_id = ? AND gp.is_eliminated = 0""",
+        (game_id,),
+    ).fetchall()
+
+    if len(standing) == 1:
+        winner = standing[0]
+        db.execute(
+            "UPDATE Game SET status = 'complete', winner_id = ?,"
+            " completed_at = datetime('now') WHERE game_id = ?",
+            (winner["user_id"], game_id),
+        )
+        db.commit()
+        socketio.emit(
+            "turn_resolved",
+            {"log": [f"{me['username']} resigned.",
+                     f"{winner['username']} wins by default."]},
+            room=lobby_room(game_id),
+        )
+        flash("You resigned. The game is over.", "success")
+        return redirect(url_for("dashboard"))
+
+    status = orders.submission_status(db, game_row)
+    if status["all_in"]:
+        result = resolution.resolve_turn(db, game_row, get_map(db, game_row))
+        socketio.emit(
+            "turn_resolved",
+            {"log": [f"{me['username']} resigned."] + result["log"]},
+            room=lobby_room(game_id),
+        )
+    else:
+        socketio.emit("orders_update", room=lobby_room(game_id))
+
+    flash("You resigned from the game.", "success")
+    return redirect(url_for("dashboard"))
+
+
 @socketio.on("join_lobby")
 def on_join_lobby(data):
     if session.get("user_id") is None:

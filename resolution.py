@@ -3,29 +3,13 @@ import json
 import improvements
 import units
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONSTANTS
-# ═══════════════════════════════════════════════════════════════════════════
-# Algorithm 1 from the design doc. Everyone's orders get revealed and applied
-# together so nobody gains anything by moving second (FR16). Order of the steps
-# is deliberate and comes straight from the design rationale:
-#   disasters first  -> orders aimed at a wrecked tile get caught in validation
-#   income last      -> a tile that changed hands this turn can't pay both players
-# Combat is deterministic (no random anywhere in here) because every client has
-# to agree on the outcome.
-
 DEFAULT_VICTORY_SHARE = 0.5
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# VALIDATION
-# ═══════════════════════════════════════════════════════════════════════════
 def _apply_disasters(db, game, log):
-    # FR20/FR21 land in phase 8, the slot is reserved here so the ordering holds
     return None
 
 
-# Throw out orders that stopped being legal between writing and reveal.
 def _validate(db, game, log):
     pending = db.execute(
         """SELECT o.*, u.owner_id, u.unit_type, u.territory_id AS unit_at
@@ -41,7 +25,6 @@ def _validate(db, game, log):
             valid.append(order)
             continue
 
-        # Unit might have died or been captured since the order was written
         if order["unit_id"] is None or order["owner_id"] != order["player_id"]:
             log.append("An order was invalidated: the unit no longer exists.")
             db.execute(
@@ -60,9 +43,6 @@ def _validate(db, game, log):
     return valid
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# BUILDING
-# ═══════════════════════════════════════════════════════════════════════════
 def _charge(db, game, player_id, cost):
     purse = db.execute(
         "SELECT resources FROM GamePlayer WHERE game_id = ? AND user_id = ?",
@@ -78,7 +58,6 @@ def _charge(db, game, player_id, cost):
     return True
 
 
-# Put up ordered units (FR14) and tile improvements (FR13).
 def _apply_builds(db, game, orders, log):
     for order in orders:
         if order["order_type"] != "build":
@@ -91,7 +70,6 @@ def _apply_builds(db, game, orders, log):
             (order["target_territory"],),
         ).fetchone()
 
-        # Tile could've been taken off them between submitting and now
         if territory is None or territory["owner_id"] != order["player_id"]:
             log.append("A build order was invalidated: the tile was lost.")
             continue
@@ -126,7 +104,6 @@ def _apply_builds(db, game, orders, log):
             if not _charge(db, game, order["player_id"], spec["cost"]):
                 log.append(f"A {spec['name']} was not built: not enough resources.")
                 continue
-            # Improvement bumps the tile's yield permanently
             db.execute(
                 "UPDATE Territory SET improvement = ?, resource_value = resource_value + ?"
                 " WHERE territory_id = ?",
@@ -135,10 +112,6 @@ def _apply_builds(db, game, orders, log):
             log.append(f"A {spec['name']} was completed.")
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# MOVEMENT AND COMBAT
-# ═══════════════════════════════════════════════════════════════════════════
-# Everyone moves at once, which is the whole point of the game.
 def _apply_movement(db, game, orders):
     destinations = {}
     for order in orders:
@@ -179,12 +152,10 @@ def _resolve_combat(db, game, log):
             (game["game_id"], spot["territory_id"]),
         ).fetchall()
 
-        # Split the mob up by who owns what
         sides = {}
         for unit in garrison:
             sides.setdefault(unit["owner_id"], []).append(unit)
 
-        # Whoever already held the tile is defending, so they use defence
         holder = territory["owner_id"]
         strength = {}
         for owner, group in sides.items():
@@ -193,19 +164,15 @@ def _resolve_combat(db, game, log):
                 u["defence"] if defending else u["attack"] for u in group
             )
 
-        # Strongest side wins. Sitting owner takes ties, else lowest user_id, so
-        # the result is never random
         winner = max(sides, key=lambda o: (strength[o], o == holder, -o))
         incoming = sum(strength[o] for o in sides if o != winner)
 
-        # Losers are wiped off the tile
         for owner, group in sides.items():
             if owner == winner:
                 continue
             for unit in group:
                 db.execute("DELETE FROM Unit WHERE unit_id = ?", (unit["unit_id"],))
 
-        # Winner still eats everything the losers threw at them, split evenly
         survivors = sides[winner]
         share = incoming // max(len(survivors), 1)
         for unit in survivors:
@@ -229,10 +196,9 @@ def _resolve_combat(db, game, log):
             )
             log.append("A territory changed hands after a battle.")
         elif not still_there:
-            log.append("A battle wiped out both sides.")  # everyone loses, brutal
+            log.append("A battle wiped out both sides.")
 
 
-# One unit standing alone on nobody's land just takes it.
 def _claim_empty(db, game):
     rows = db.execute(
         """SELECT t.territory_id, MIN(u.owner_id) AS claimant,
@@ -249,10 +215,6 @@ def _claim_empty(db, game):
         )
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# ECONOMY AND ENDING
-# ═══════════════════════════════════════════════════════════════════════════
-# Pay everyone their territory income out of the finite pool (FR18/FR19).
 def _pay_income(db, game, log):
     pool = db.execute(
         "SELECT global_resources FROM Game WHERE game_id = ?", (game["game_id"],)
@@ -270,7 +232,7 @@ def _pay_income(db, game, log):
 
     for row in earners:
         if pool <= 0:
-            break  # world's tapped out, nobody earns anything (FR19)
+            break
         paid = min(row["income"], pool)
         if paid <= 0:
             continue
@@ -303,7 +265,6 @@ def _check_elimination(db, game, log):
             "SELECT COUNT(*) c FROM Unit WHERE game_id = ? AND owner_id = ?",
             (game["game_id"], player["user_id"]),
         ).fetchone()["c"]
-        # No land and no units left = you're done
         if held == 0 and alive == 0:
             db.execute(
                 "UPDATE GamePlayer SET is_eliminated = 1"
@@ -351,9 +312,6 @@ def _check_victory(db, game, victory_share, log):
     return winner["user_id"]
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# THE TURN ITSELF
-# ═══════════════════════════════════════════════════════════════════════════
 def resolve_turn(db, game, map_row):
     """Reveal and apply everyone's orders at once (FR16). Hands back a log."""
     log = []
@@ -375,7 +333,6 @@ def resolve_turn(db, game, map_row):
         " WHERE game_id = ? AND turn_number = ? AND status = 'pending'",
         (game["game_id"], game["current_turn"]),
     )
-    # Only roll the turn over if nobody actually won
     if winner_id is None:
         db.execute(
             "UPDATE Game SET current_turn = current_turn + 1 WHERE game_id = ?",

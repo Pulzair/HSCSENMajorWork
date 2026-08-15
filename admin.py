@@ -6,13 +6,9 @@ from flask_bcrypt import Bcrypt
 
 from db import get_db
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONSTANTS
-# ═══════════════════════════════════════════════════════════════════════════
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 bcrypt = Bcrypt()
 
-# Throwaway accounts for testing on my own machine, never put these anywhere real
 TESTER_PASSWORD = "password123"
 TESTERS = [
     ("tester1", "tester1@battley.test"),
@@ -29,32 +25,21 @@ def init_app(app):
     app.cli.add_command(seed_testers_command)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# ACCESS CONTROL
-# ═══════════════════════════════════════════════════════════════════════════
-# Section 9.4 asks for an @admin_required decorator that checks is_admin, so
-# here it is. Everything in this file sits behind it
 def admin_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if g.user is None:
             return redirect(url_for("auth.login"))
         if not g.user["is_admin"]:
-            abort(403)  # unauthorised action, 403 not a redirect (section 9.3)
+            abort(403)
         return view(**kwargs)
     return wrapped_view
 
 
-# Bin games nobody is in any more.
 def sweep_orphan_games(db):
-    # Deleting a User cascades their GamePlayer rows but nothing cascades the
-    # Game itself, so without this an abandoned session sits there forever
     db.execute("DELETE FROM Game WHERE game_id NOT IN (SELECT game_id FROM GamePlayer)")
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# DASHBOARD
-# ═══════════════════════════════════════════════════════════════════════════
 @bp.route("/")
 @admin_required
 def dashboard():
@@ -82,9 +67,6 @@ def dashboard():
     return render_template("admin.html", sessions=sessions, accounts=accounts)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# MANAGING SESSIONS AND ACCOUNTS
-# ═══════════════════════════════════════════════════════════════════════════
 @bp.route("/game/<int:game_id>/delete", methods=("POST",))
 @admin_required
 def delete_game(game_id):
@@ -94,7 +76,7 @@ def delete_game(game_id):
         flash("That session no longer exists.", "error")
         return redirect(url_for("admin.dashboard"))
 
-    db.execute("DELETE FROM Game WHERE game_id = ?", (game_id,))  # board cascades off
+    db.execute("DELETE FROM Game WHERE game_id = ?", (game_id,))
     db.commit()
     flash(f"Session {game['join_code']} deleted.", "success")
     return redirect(url_for("admin.dashboard"))
@@ -103,7 +85,6 @@ def delete_game(game_id):
 @bp.route("/user/<int:user_id>/delete", methods=("POST",))
 @admin_required
 def delete_user(user_id):
-    # Section 11.1 promises account deletion wipes everything of theirs
     db = get_db()
     if user_id == g.user["user_id"]:
         flash("You cannot delete your own account from here.", "error")
@@ -143,14 +124,9 @@ def toggle_admin(user_id):
     return redirect(url_for("admin.dashboard"))
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CLI
-# ═══════════════════════════════════════════════════════════════════════════
 @click.command("make-admin")
 @click.argument("username")
 def make_admin_command(username):
-    # Needed to make the FIRST admin. is_admin defaults to 0 so without this
-    # nobody could ever get into the dashboard to promote anyone, chicken and egg
     db = get_db()
     account = db.execute("SELECT user_id FROM User WHERE username = ?", (username,)).fetchone()
     if account is None:

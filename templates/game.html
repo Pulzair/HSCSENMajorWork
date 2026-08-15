@@ -121,6 +121,13 @@
         </li>
         {% endfor %}
     </ul>
+    {% if not me_player['is_eliminated'] %}
+    <form method="post"
+          action="{{ url_for('lobby.resign', join_code=game['join_code']) }}"
+          onsubmit="return confirm('Resign from this game? Your units are removed and your territory goes neutral. This cannot be undone.');">
+        <button type="submit">Resign from game</button>
+    </form>
+    {% endif %}
 </section>
 
 <script>

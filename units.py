@@ -4,7 +4,8 @@ from pathlib import Path
 UNITS_DIR = Path(__file__).resolve().parent / "data" / "units"
 LAYERS = ("land", "underground", "sky")
 
-_roster = None  # filled in on first read, then reused
+_roster = None
+
 
 def load_roster(force=False):
     global _roster
@@ -31,7 +32,6 @@ def can_transition(unit_type):
     return bool(spec) and len(spec["layers"]) > 1
 
 
-# Unit types that can be built on a layer, cheapest first.
 def buildable_in(layer):
     roster = load_roster()
     types = [key for key, spec in roster.items() if layer in spec["layers"]]
@@ -44,7 +44,7 @@ def can_occupy(unit_type, layer, terrain):
         return False
     return layer in spec["layers"] and terrain in spec["terrain"]
 
-# Whole roster grouped by home layer, for the codex page.
+
 def roster_by_layer():
     roster = load_roster()
     grouped = {}

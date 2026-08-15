@@ -1,26 +1,11 @@
 import units
 
-# ═══════════════════════════════════════════════════════════════════════════
-# CONSTANTS
-# ═══════════════════════════════════════════════════════════════════════════
-# Fog of war (FR11). Every tile is one of three things to a player:
-#   visible  - something of theirs is in range of it right now
-#   explored - they saw it before, so they remember the ground but not who's on it
-#   hidden   - never seen, they get told nothing at all
-# Visibility gets recalculated every render because units move. Exploration is
-# history so it has to be saved -> TerritorySeen.
-
-CITY_VISION = 1  # how far you see out from land you own
+CITY_VISION = 1
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# VISION
-# ═══════════════════════════════════════════════════════════════════════════
-# Every ref the player sees out from, mapped to how far it reaches.
 def vision_sources(db, game_id, user_id):
     sources = {}
 
-    # Your own territory always shows you a bit of the area around it
     owned = db.execute(
         "SELECT map_territory_ref FROM Territory WHERE game_id = ? AND owner_id = ?",
         (game_id, user_id),
@@ -29,8 +14,6 @@ def vision_sources(db, game_id, user_id):
         ref = row["map_territory_ref"]
         sources[ref] = max(sources.get(ref, 0), CITY_VISION)
 
-    # Units see further, and how far comes from their config (NF09). This is the
-    # whole reason a Sky Skimmer or a Dire Bat is worth buying
     garrisons = db.execute(
         """SELECT u.unit_type, t.map_territory_ref
              FROM Unit u
@@ -52,9 +35,8 @@ def compute_visible(db, game_id, user_id, adjacency, fog_modifiers):
     visible = set()
 
     for origin, reach in vision_sources(db, game_id, user_id).items():
-        visible.add(origin)  # you always see where you're standing, fog or not
+        visible.add(origin)
 
-        # Walk outwards `reach` steps through the adjacency graph
         frontier = {origin}
         walked = {origin}
         for _step in range(reach):
@@ -65,7 +47,6 @@ def compute_visible(db, game_id, user_id, adjacency, fog_modifiers):
                         continue
                     walked.add(neighbour)
                     nxt.add(neighbour)
-                    # A disaster-fogged tile can only be seen by standing on it
                     if fog_modifiers.get(neighbour, 1.0) >= 1.0:
                         visible.add(neighbour)
             frontier = nxt
@@ -73,9 +54,6 @@ def compute_visible(db, game_id, user_id, adjacency, fog_modifiers):
     return visible
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# EXPLORATION HISTORY
-# ═══════════════════════════════════════════════════════════════════════════
 def explored_refs(db, game_id, user_id):
     rows = db.execute(
         """SELECT t.map_territory_ref
@@ -87,7 +65,6 @@ def explored_refs(db, game_id, user_id):
     return {row["map_territory_ref"] for row in rows}
 
 
-# Remember new tiles so they stay explored once the units wander off.
 def record_seen(db, game, user_id, visible, ref_to_territory_id):
     rows = [
         (game["game_id"], user_id, ref_to_territory_id[ref], game["current_turn"])
