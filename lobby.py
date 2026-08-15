@@ -6,6 +6,7 @@ from flask import (
 )
 from flask_socketio import join_room
 
+import diplomacy
 import maps
 import orders
 import resolution
@@ -384,6 +385,7 @@ def game(join_code):
         me_player=find_player(players, me),
         submitted=(find_player(players, me)["submitted_turn"] == game_row["current_turn"]),
         seconds_left=resolution.seconds_left(game_row),
+        diplomacy_board=diplomacy.board(db, game_row, me),
         unit_specs=units.load_roster(),
     )
 
@@ -479,6 +481,76 @@ def submit_orders(join_code):
     else:
         socketio.emit("orders_update", room=lobby_room(game_row["game_id"]))
         flash("Orders locked in. Waiting for the other players.", "success")
+    return redirect(url_for("lobby.game", join_code=code))
+
+
+def _diplomacy_game(db, code):
+    game_row = get_game(db, code)
+    if game_row is None or game_row["status"] != "active":
+        return None, None
+    players = get_players(db, game_row["game_id"])
+    return game_row, find_player(players, g.user["user_id"])
+
+
+@bp.route("/game/<join_code>/diplomacy/propose", methods=("POST",))
+@login_required
+def propose_deal(join_code):
+    code = join_code.upper()
+    db = get_db()
+    game_row, me = _diplomacy_game(db, code)
+    if game_row is None or me is None:
+        flash("Game not found.", "error")
+        return redirect(url_for("dashboard"))
+    if me["is_eliminated"]:
+        flash("You are out of this game.", "error")
+        return redirect(url_for("lobby.game", join_code=code))
+
+    problems = diplomacy.propose(
+        db,
+        game_row,
+        g.user["user_id"],
+        request.form.get("recipient_id", type=int),
+        request.form.get("agreement_type", ""),
+        request.form.get("turns", type=int) or 0,
+        request.form.get("offer", type=int) or 0,
+        request.form.get("request", type=int) or 0,
+    )
+    if problems:
+        for problem in problems:
+            flash(problem, "error")
+    else:
+        flash("Offer sent.", "success")
+        socketio.emit("orders_update", room=lobby_room(game_row["game_id"]))
+    return redirect(url_for("lobby.game", join_code=code))
+
+
+@bp.route("/game/<join_code>/diplomacy/<int:agreement_id>/respond", methods=("POST",))
+@login_required
+def respond_deal(join_code, agreement_id):
+    code = join_code.upper()
+    db = get_db()
+    game_row, me = _diplomacy_game(db, code)
+    if game_row is None or me is None:
+        flash("Game not found.", "error")
+        return redirect(url_for("dashboard"))
+
+    choice = request.form.get("answer", "")
+    if choice == "withdraw":
+        problems = diplomacy.cancel(db, game_row, agreement_id, g.user["user_id"])
+        done = "Offer withdrawn."
+    else:
+        accept = choice == "accept"
+        problems = diplomacy.respond(
+            db, game_row, agreement_id, g.user["user_id"], accept
+        )
+        done = "Agreement signed." if accept else "Offer declined."
+
+    if problems:
+        for problem in problems:
+            flash(problem, "error")
+    else:
+        flash(done, "success")
+        socketio.emit("orders_update", room=lobby_room(game_row["game_id"]))
     return redirect(url_for("lobby.game", join_code=code))
 
 

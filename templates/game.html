@@ -129,6 +129,115 @@
         </li>
         {% endfor %}
     </ul>
+    <h3>Diplomacy</h3>
+    <p class="form-hint">
+        Your reputation is {{ diplomacy_board['reputation'] }} / 100.
+        Signing costs {{ diplomacy_board['cost_modifier'] }}&times; the base price while it stays there.
+        Breaking a deal costs you reputation and makes every future deal dearer.
+    </p>
+
+    {% if diplomacy_board['incoming'] %}
+    <ul class="deal-list">
+        {% for deal in diplomacy_board['incoming'] %}
+        <li class="deal deal--offer">
+            <span class="deal__text">
+                <strong>{{ deal['other_name'] }}</strong> offers a {{ deal['kind_name']|lower }}
+                {% if deal['agreement_type'] == 'trade' %}
+                    &mdash; they give {{ deal['terms']['offer'] }}, you give {{ deal['terms']['request'] }}
+                {% else %}
+                    for {{ deal['turns_remaining'] }} turns
+                {% endif %}
+            </span>
+            <form method="post" class="deal__actions"
+                  action="{{ url_for('lobby.respond_deal', join_code=game['join_code'], agreement_id=deal['agreement_id']) }}">
+                <button type="submit" name="answer" value="accept">Accept</button>
+                <button type="submit" name="answer" value="decline" class="secondary">Decline</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if diplomacy_board['active'] %}
+    <ul class="deal-list">
+        {% for deal in diplomacy_board['active'] %}
+        <li class="deal deal--active">
+            <span class="deal__text">
+                {{ deal['kind_name'] }} with <strong>{{ deal['other_name'] }}</strong>
+                &mdash; {{ deal['turns_remaining'] }} turns left
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if diplomacy_board['outgoing'] %}
+    <ul class="deal-list">
+        {% for deal in diplomacy_board['outgoing'] %}
+        <li class="deal deal--pending">
+            <span class="deal__text">
+                Waiting on <strong>{{ deal['other_name'] }}</strong> for a {{ deal['kind_name']|lower }}
+            </span>
+            <form method="post" class="deal__actions"
+                  action="{{ url_for('lobby.respond_deal', join_code=game['join_code'], agreement_id=deal['agreement_id']) }}">
+                <button type="submit" name="answer" value="withdraw" class="secondary">Withdraw</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if not me_player['is_eliminated'] and diplomacy_board['partners'] %}
+    <form method="post" class="deal-form"
+          action="{{ url_for('lobby.propose_deal', join_code=game['join_code']) }}">
+        <div class="form-field">
+            <label for="recipient_id">Offer a deal to</label>
+            <select id="recipient_id" name="recipient_id">
+                {% for partner in diplomacy_board['partners'] %}
+                <option value="{{ partner['user_id'] }}">{{ partner['username'] }} (reputation {{ partner['reputation'] }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-field">
+            <label for="agreement_type">Deal</label>
+            <select id="agreement_type" name="agreement_type">
+                <option value="non_aggression">Non-aggression pact ({{ diplomacy_board['costs']['non_aggression'] }})</option>
+                <option value="alliance">Alliance ({{ diplomacy_board['costs']['alliance'] }})</option>
+                <option value="trade">Resource trade</option>
+            </select>
+        </div>
+        <div class="form-field">
+            <label for="turns">Length in turns (pacts only)</label>
+            <input type="number" id="turns" name="turns" value="5"
+                   min="{{ diplomacy_board['min_turns'] }}" max="{{ diplomacy_board['max_turns'] }}">
+        </div>
+        <div class="form-field">
+            <label for="offer">You give (trade only)</label>
+            <input type="number" id="offer" name="offer" value="0" min="0" max="{{ budget }}">
+        </div>
+        <div class="form-field">
+            <label for="request">They give (trade only)</label>
+            <input type="number" id="request" name="request" value="0" min="0">
+        </div>
+        <button type="submit">Send offer</button>
+    </form>
+    {% endif %}
+
+    {% if diplomacy_board['history'] %}
+    <ul class="deal-list deal-list--history">
+        {% for deal in diplomacy_board['history'] %}
+        <li class="deal deal--{{ deal['status'] }}">
+            <span class="deal__text">
+                {{ deal['kind_name'] }} with {{ deal['other_name'] }} &mdash; {{ deal['status'] }}
+                {% if deal['status'] == 'breached' and deal['breached_by'] %}
+                    (broken turn {{ deal['breached_turn'] }})
+                {% endif %}
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
     {% if not me_player['is_eliminated'] %}
     <form method="post"
           action="{{ url_for('lobby.resign', join_code=game['join_code']) }}"

@@ -439,3 +439,55 @@ body {
 .turn-timer--urgent {
     color: #c1121f;
 }
+
+.deal-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem 0;
+}
+
+.deal {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.4rem;
+    border-left: 4px solid var(--pico-muted-border-color, #ccc);
+    background: var(--pico-card-background-color, #f6f6f6);
+    border-radius: 4px;
+}
+
+.deal__text { flex: 1 1 60%; }
+
+.deal__actions {
+    display: flex;
+    gap: 0.4rem;
+    margin: 0;
+}
+
+.deal__actions button {
+    width: auto;
+    margin: 0;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+.deal--offer { border-left-color: #e9c46a; }
+.deal--active { border-left-color: #2a9d8f; }
+.deal--pending { border-left-color: #457b9d; }
+.deal--breached { border-left-color: #c1121f; }
+.deal--expired, .deal--declined { border-left-color: #adb5bd; }
+
+.deal-list--history { opacity: 0.75; font-size: 0.9rem; }
+
+.deal-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.5rem 1rem;
+    align-items: end;
+    margin-bottom: 1rem;
+}
+
+.deal-form button { grid-column: 1 / -1; }

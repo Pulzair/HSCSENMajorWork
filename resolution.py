@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timezone
 
+import diplomacy
 import improvements
 import units
 
@@ -220,6 +221,19 @@ def _resolve_combat(db, game, log):
             sides.setdefault(unit["owner_id"], []).append(unit)
 
         holder = territory["owner_id"]
+
+        if len(sides) > 1:
+            friendly = [
+                owner
+                for owner in sides
+                if all(
+                    owner == other
+                    or diplomacy.are_allied(db, game["game_id"], owner, other)
+                    for other in sides
+                )
+            ]
+            if len(friendly) == len(sides):
+                continue
         strength = {}
         for owner, group in sides.items():
             defending = owner == holder
@@ -383,6 +397,7 @@ def resolve_turn(db, game, map_row):
 
     _apply_disasters(db, game, log)
     valid = _validate(db, game, log)
+    diplomacy.detect_breaches(db, game, valid, log)
     _apply_builds(db, game, valid, log)
     _apply_movement(db, game, valid)
     _resolve_combat(db, game, log)
@@ -405,6 +420,7 @@ def resolve_turn(db, game, map_row):
             "UPDATE GamePlayer SET submitted_turn = NULL WHERE game_id = ?",
             (game["game_id"],),
         )
+        diplomacy.advance(db, game, log)
         set_deadline(db, game["game_id"], config)
     else:
         db.execute(
