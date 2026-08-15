@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import diplomacy
 import improvements
+import maps
 import units
 
 DEFAULT_VICTORY_SHARE = 0.5
@@ -74,37 +75,68 @@ def _apply_disasters(db, game, log):
     return None
 
 
-def _validate(db, game, log):
+def _validate(db, game, log, adjacency=None):
     pending = db.execute(
-        """SELECT o.*, u.owner_id, u.unit_type, u.territory_id AS unit_at
+        """SELECT o.*, u.owner_id, u.unit_type, u.territory_id AS unit_at,
+                  u.layer AS unit_layer,
+                  s.layer AS source_layer, s.terrain_type AS source_terrain,
+                  s.map_territory_ref AS source_ref,
+                  t.terrain_type AS target_terrain,
+                  t.map_territory_ref AS target_ref,
+                  p.username AS player_name
              FROM Orders o
         LEFT JOIN Unit u ON u.unit_id = o.unit_id
+        LEFT JOIN Territory s ON s.territory_id = o.source_territory
+        LEFT JOIN Territory t ON t.territory_id = o.target_territory
+        LEFT JOIN User p ON p.user_id = o.player_id
             WHERE o.game_id = ? AND o.turn_number = ? AND o.status = 'pending'""",
         (game["game_id"], game["current_turn"]),
     ).fetchall()
 
     valid = []
     for order in pending:
-        if order["order_type"] == "build":
+        reason = _order_fault(order, adjacency)
+        if reason is None:
             valid.append(order)
             continue
 
-        if order["unit_id"] is None or order["owner_id"] != order["player_id"]:
-            log.append("An order was invalidated: the unit no longer exists.")
-            db.execute(
-                "UPDATE Orders SET status = 'cancelled' WHERE order_id = ?",
-                (order["order_id"],),
-            )
-            continue
-        if order["unit_at"] != order["source_territory"]:
-            log.append("An order was invalidated: the unit had already moved.")
-            db.execute(
-                "UPDATE Orders SET status = 'cancelled' WHERE order_id = ?",
-                (order["order_id"],),
-            )
-            continue
-        valid.append(order)
+        who = order["player_name"] or "A player"
+        log.append(f"{who} had an order invalidated: {reason}.")
+        db.execute(
+            "UPDATE Orders SET status = 'cancelled' WHERE order_id = ?",
+            (order["order_id"],),
+        )
     return valid
+
+
+def _order_fault(order, adjacency):
+    if order["order_type"] == "build":
+        if order["source_terrain"] == "destroyed":
+            return "the ground was destroyed"
+        return None
+
+    if order["unit_id"] is None or order["owner_id"] != order["player_id"]:
+        return "the unit no longer exists"
+    if order["unit_at"] != order["source_territory"]:
+        return "the unit had already moved"
+    if order["source_layer"] is not None and order["unit_layer"] != order["source_layer"]:
+        return "the unit was not on that layer"
+    if order["source_terrain"] == "destroyed":
+        return "the ground it stood on was destroyed"
+
+    if order["target_territory"] is None:
+        return "it had nowhere to go"
+    if order["target_terrain"] is None:
+        return "the destination no longer exists"
+    if order["target_terrain"] == "destroyed":
+        return "the destination was destroyed"
+
+    if adjacency is not None:
+        neighbours = adjacency.get(order["source_ref"], ())
+        if order["target_ref"] not in neighbours:
+            return "the destination was out of reach"
+
+    return None
 
 
 def _charge(db, game, player_id, cost):
@@ -395,8 +427,10 @@ def resolve_turn(db, game, map_row):
     config = json.loads(map_row["layout_json"]) if map_row else {}
     victory_share = config.get("victory_territory_share", DEFAULT_VICTORY_SHARE)
 
+    adjacency = maps.build_adjacency(maps.get_layout(map_row)) if map_row else None
+
     _apply_disasters(db, game, log)
-    valid = _validate(db, game, log)
+    valid = _validate(db, game, log, adjacency)
     diplomacy.detect_breaches(db, game, valid, log)
     _apply_builds(db, game, valid, log)
     _apply_movement(db, game, valid)
