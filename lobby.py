@@ -251,6 +251,7 @@ def start(join_code):
         "UPDATE Game SET status = 'active' WHERE game_id = ?", (game["game_id"],)
     )
     maps.seed_territories(db, game["game_id"], game_map)
+    resolution.set_deadline(db, game["game_id"], maps.get_layout(game_map))
     db.commit()
     socketio.emit(
         "game_started",
@@ -382,6 +383,7 @@ def game(join_code):
         status=status,
         me_player=find_player(players, me),
         submitted=(find_player(players, me)["submitted_turn"] == game_row["current_turn"]),
+        seconds_left=resolution.seconds_left(game_row),
         unit_specs=units.load_roster(),
     )
 
@@ -478,6 +480,40 @@ def submit_orders(join_code):
         socketio.emit("orders_update", room=lobby_room(game_row["game_id"]))
         flash("Orders locked in. Waiting for the other players.", "success")
     return redirect(url_for("lobby.game", join_code=code))
+
+
+@bp.route("/game/<join_code>/resolve", methods=("POST",))
+@login_required
+def force_resolve(join_code):
+    code = join_code.upper()
+    db = get_db()
+    game_row = get_game(db, code)
+    if game_row is None or game_row["status"] != "active":
+        return {"resolved": False, "reason": "not active"}
+
+    players = get_players(db, game_row["game_id"])
+    if find_player(players, g.user["user_id"]) is None:
+        return {"resolved": False, "reason": "not a player"}, 403
+
+    claimed = db.execute(
+        "UPDATE Game SET turn_deadline = NULL"
+        " WHERE game_id = ? AND current_turn = ?"
+        "   AND turn_deadline IS NOT NULL"
+        "   AND turn_deadline <= datetime('now')",
+        (game_row["game_id"], game_row["current_turn"]),
+    ).rowcount
+    if not claimed:
+        db.commit()
+        return {"resolved": False, "reason": "not due"}
+    db.commit()
+
+    result = resolution.resolve_turn(db, game_row, get_map(db, game_row))
+    socketio.emit(
+        "turn_resolved",
+        {"log": ["Time ran out."] + result["log"]},
+        room=lobby_room(game_row["game_id"]),
+    )
+    return {"resolved": True}
 
 
 @bp.route("/game/<join_code>/resign", methods=("POST",))

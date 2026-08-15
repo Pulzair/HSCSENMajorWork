@@ -1,9 +1,72 @@
 import json
+from datetime import datetime, timezone
 
 import improvements
 import units
 
 DEFAULT_VICTORY_SHARE = 0.5
+
+TURN_TIMER_DEFAULTS = {
+    "turn_seconds_base": 45,
+    "turn_seconds_per_unit": 4,
+    "turn_seconds_per_territory": 2,
+    "turn_seconds_min": 30,
+    "turn_seconds_max": 300,
+}
+
+
+def timer_settings(config):
+    settings = dict(TURN_TIMER_DEFAULTS)
+    for key in settings:
+        if isinstance(config.get(key), (int, float)) and config[key] >= 0:
+            settings[key] = config[key]
+    return settings
+
+
+def turn_seconds(db, game_id, config):
+    settings = timer_settings(config)
+
+    standing = db.execute(
+        "SELECT COUNT(*) c FROM GamePlayer WHERE game_id = ? AND is_eliminated = 0",
+        (game_id,),
+    ).fetchone()["c"]
+    if not standing:
+        return settings["turn_seconds_min"]
+
+    held = db.execute(
+        """SELECT COUNT(*) c FROM Territory
+            WHERE game_id = ? AND owner_id IS NOT NULL""",
+        (game_id,),
+    ).fetchone()["c"]
+    alive = db.execute(
+        "SELECT COUNT(*) c FROM Unit WHERE game_id = ?", (game_id,)
+    ).fetchone()["c"]
+
+    seconds = (
+        settings["turn_seconds_base"]
+        + (alive / standing) * settings["turn_seconds_per_unit"]
+        + (held / standing) * settings["turn_seconds_per_territory"]
+    )
+    seconds = max(settings["turn_seconds_min"], min(settings["turn_seconds_max"], seconds))
+    return int(round(seconds))
+
+
+def set_deadline(db, game_id, config):
+    seconds = turn_seconds(db, game_id, config)
+    db.execute(
+        "UPDATE Game SET turn_deadline = datetime('now', ?) WHERE game_id = ?",
+        (f"+{seconds} seconds", game_id),
+    )
+    return seconds
+
+
+def seconds_left(game):
+    if game["turn_deadline"] is None:
+        return None
+    deadline = datetime.strptime(game["turn_deadline"], "%Y-%m-%d %H:%M:%S")
+    deadline = deadline.replace(tzinfo=timezone.utc)
+    remaining = (deadline - datetime.now(timezone.utc)).total_seconds()
+    return max(0, int(remaining))
 
 
 def _apply_disasters(db, game, log):
@@ -340,6 +403,12 @@ def resolve_turn(db, game, map_row):
         )
         db.execute(
             "UPDATE GamePlayer SET submitted_turn = NULL WHERE game_id = ?",
+            (game["game_id"],),
+        )
+        set_deadline(db, game["game_id"], config)
+    else:
+        db.execute(
+            "UPDATE Game SET turn_deadline = NULL WHERE game_id = ?",
             (game["game_id"],),
         )
     db.commit()

@@ -57,14 +57,22 @@
     </ul>
 
     <h3>Your orders</h3>
+    {% if seconds_left is not none %}
+    <p class="turn-timer" id="turnTimer" data-seconds="{{ seconds_left }}"
+       data-resolve-url="{{ url_for('lobby.force_resolve', join_code=game['join_code']) }}">
+        Time left: <span id="turnTimerValue">--:--</span>
+    </p>
+    {% endif %}
     <p class="form-hint">You have {{ budget }} resources. Orders stay secret until every
-        player has submitted, then they all resolve together.</p>
+        player has submitted, then they all resolve together. When the timer runs out
+        whatever you have selected is submitted and anything left on hold stays put.</p>
 
     {% if submitted %}
     <p class="orders__locked">Orders locked in for turn {{ game['current_turn'] }}.
         Waiting for {{ status['total'] - status['ready'] }} more player(s).</p>
     {% else %}
-    <form method="post" action="{{ url_for('lobby.submit_orders', join_code=game['join_code']) }}">
+    <form id="ordersForm" method="post"
+          action="{{ url_for('lobby.submit_orders', join_code=game['join_code']) }}">
         {% for unit in my_units %}
         <div class="form-field">
             <label for="unit_{{ unit['unit_id'] }}">

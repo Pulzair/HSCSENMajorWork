@@ -430,3 +430,12 @@ body {
     font-style: italic;
     color: #6f5c3c;
 }
+.turn-timer {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.turn-timer--urgent {
+    color: #c1121f;
+}

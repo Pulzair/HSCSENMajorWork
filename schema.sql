@@ -49,6 +49,7 @@ CREATE TABLE Game (
     winner_id        INTEGER REFERENCES User(user_id) ON DELETE SET NULL,
     created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
     completed_at     TEXT,
+    turn_deadline    TEXT,
     global_resources INTEGER NOT NULL DEFAULT 0
                              CHECK (global_resources >= 0)
 );

@@ -17,6 +17,52 @@ tabs.forEach((tab) => {
     });
 });
 
+const timerBox = document.getElementById("turnTimer");
+
+if (timerBox) {
+    const valueEl = document.getElementById("turnTimerValue");
+    const ordersForm = document.getElementById("ordersForm");
+    const resolveUrl = timerBox.dataset.resolveUrl;
+    let remaining = parseInt(timerBox.dataset.seconds, 10);
+    let fired = false;
+
+    const paint = () => {
+        const safe = Math.max(0, remaining);
+        const mins = Math.floor(safe / 60);
+        const secs = safe % 60;
+        valueEl.textContent = `${mins}:${String(secs).padStart(2, "0")}`;
+        timerBox.classList.toggle("turn-timer--urgent", safe <= 10);
+    };
+
+    const expire = () => {
+        if (fired) return;
+        fired = true;
+        valueEl.textContent = "0:00";
+
+        if (ordersForm) {
+            ordersForm.requestSubmit();
+            return;
+        }
+
+        fetch(resolveUrl, {
+            method: "POST",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+        }).catch(() => {});
+    };
+
+    paint();
+    if (remaining <= 0) expire();
+
+    const ticker = setInterval(() => {
+        remaining -= 1;
+        paint();
+        if (remaining <= 0) {
+            clearInterval(ticker);
+            expire();
+        }
+    }, 1000);
+}
+
 if (typeof io !== "undefined" && window.BATTLEY_GAME_ID) {
     const socket = io();
 
