@@ -52,6 +52,10 @@ CREATE TABLE Game (
     created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
     completed_at     TEXT,
     turn_deadline    TEXT,
+    board_size       INTEGER NOT NULL DEFAULT 0,
+    timer_on         INTEGER NOT NULL DEFAULT 1
+                             CHECK (timer_on IN (0, 1)),
+    board_json       TEXT,
     global_resources INTEGER NOT NULL DEFAULT 0
                              CHECK (global_resources >= 0)
 );
@@ -69,6 +73,7 @@ CREATE TABLE GamePlayer (
                           CHECK (is_host IN (0, 1)),
     is_eliminated  INTEGER NOT NULL DEFAULT 0
                           CHECK (is_eliminated IN (0, 1)),
+    result         TEXT    CHECK (result IN ('win', 'draw', 'loss')),
     submitted_turn INTEGER,
     UNIQUE (game_id, user_id),
     UNIQUE (game_id, player_colour)

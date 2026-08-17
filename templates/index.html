@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-
-{% block title %}Homepage - Battley{% endblock %}
-
+{% block title %}Battley{% endblock %}
 {% block content %}
-<section class="hello">
-    <h2>Hello, world!</h2>
-    <p>Battley is up and running.</p>
-    <p>Need a better name ASAP.</p>
-</section>
+<article class="stack">
+	<h1>Battley</h1>
+	<p>
+		{% if g.user %}<a class="button" href="{{ url_for('dashboard') }}">Go to your dashboard</a>
+		{% else %}<a class="button" href="{{ url_for('accounts.register') }}">Create an account</a> <a class="button quiet" href="{{ url_for('accounts.login') }}">Log in</a>{% endif %}
+	</p>
+</article>
 {% endblock %}

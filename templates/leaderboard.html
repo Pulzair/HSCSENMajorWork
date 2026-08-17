@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard - Battley{% endblock %}
+
+{% block scripts %}
+<script>
+	document.querySelectorAll(".name-toggle").forEach(button => {
+		button.addEventListener("click", () => {
+			const row = document.getElementById(button.dataset.bio);
+			row.hidden = !row.hidden;
+		});
+	});
+</script>
+{% endblock %}
+{% block content %}
+<article class="stack">
+	<h1>Leaderboard</h1>
+	{% if not table %}<p><small>No finished games yet.</small></p>
+	{% else %}
+	<table>
+		<thead><tr><th>#</th><th>Player</th><th>Points</th><th>Played</th><th>Won</th><th>Drew</th><th>Rate</th><th>Reputation</th></tr></thead>
+		<tbody>
+			{% for row in table %}
+			<tr class="{{ 'me' if g.user and row['user_id'] == g.user['user_id'] else '' }}">
+				<td>{{ row['place'] }}</td>
+				<td><button type="button" class="name-toggle" data-bio="bio{{ row['user_id'] }}">{{ row['username'] }}</button>{% if row['played'] < floor %} <span class="tag">new</span>{% endif %}</td>
+				<td><strong>{{ row['points'] }}</strong></td>
+				<td>{{ row['played'] }}</td><td>{{ row['won'] }}</td><td>{{ row['drawn'] }}</td>
+				<td>{{ row['win_rate'] }}%</td><td>{{ row['reputation'] }}</td>
+			</tr>
+			<tr class="bio-row" id="bio{{ row['user_id'] }}" hidden><td colspan="8">{{ row['bio'] or 'No bio written yet.' }}</td></tr>
+			{% endfor %}
+		</tbody>
+	</table>
+	{% endif %}
+</article>
+{% endblock %}

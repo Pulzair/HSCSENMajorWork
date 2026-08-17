@@ -1,75 +1,60 @@
 {% extends "base.html" %}
-
 {% block title %}Lobby {{ game['join_code'] }} - Battley{% endblock %}
-
 {% block content %}
-<section class="lobby">
-    <h2>Game Lobby</h2>
+<article class="stack">
+	<h1>Lobby</h1>
+	<p class="lede">Share the code <strong>{{ game['join_code'] }}</strong> with the people you want in the game.</p>
 
-    <p class="form-hint">Share this code so others can join:</p>
-    <p class="lobby__code">{{ game['join_code'] }}</p>
+	<section>
+		<h3>Players ({{ players|length }} of {{ max_players }})</h3>
+		<ul class="side">
+			{% for player in players %}
+			<li><span class="swatch" style="background: {{ player['player_colour'] }}"></span> {{ player['username'] }} {% if player['is_host'] %}<span class="tag tag--on">host</span>{% endif %}</li>
+			{% endfor %}
+		</ul>
+	</section>
 
-    <h3>Map</h3>
-    {% if is_host %}
-    <form method="post" action="{{ url_for('lobby.settings', join_code=game['join_code']) }}">
-        <div class="form-field">
-            <label for="map_id">Choose a map</label>
-            <select id="map_id" name="map_id">
-                {% for option in all_maps %}
-                <option value="{{ option['map_id'] }}"
-                        {% if game_map and option['map_id'] == game_map['map_id'] %}selected{% endif %}>
-                    {{ option['name'] }} ({{ option['min_players'] }}-{{ option['max_players'] }} players)
-                </option>
-                {% endfor %}
-            </select>
-        </div>
-        <button type="submit" class="secondary">Save map</button>
-    </form>
-    {% else %}
-    <p>{{ game_map['name'] if game_map else 'No map chosen yet' }}</p>
-    {% endif %}
-    {% if game_map %}<p class="form-hint">{{ game_map['description'] }}</p>{% endif %}
+	{% if is_host %}
+	<section>
+		<h3>Settings</h3>
+		<form method="post" action="{{ url_for('play.settings', code=game['join_code']) }}">
+			<div class="row">
+				<div class="field">
+					<label for="map_id">Preset map</label>
+					<select id="map_id" name="map_id">
+						{% for option in all_maps %}<option value="{{ option['map_id'] }}" {% if option['map_id'] == game['map_id'] %}selected{% endif %}>{{ option['name'] }}</option>{% endfor %}
+					</select>
+				</div>
+				<div class="field">
+					<label for="board_size">Board</label>
+					<select id="board_size" name="board_size">
+						{% for size in board_choices %}<option value="{{ size }}" {% if size == game['board_size'] %}selected{% endif %}>{{ 'Preset map' if not size else (size ~ ' x ' ~ size ~ ' generated') }}</option>{% endfor %}
+					</select>
+				</div>
+				<div class="field toggle-row">
+					<input type="checkbox" id="timer_on" name="timer_on" value="1" {% if game['timer_on'] %}checked{% endif %}>
+					<label for="timer_on">Turn timer</label>
+				</div>
+				<div class="field"><button type="submit" class="quiet">Save</button></div>
+			</div>
+		</form>
+	</section>
+	{% endif %}
 
-    <h3>Players ({{ players|length }}/{{ max_players }})</h3>
-    <ul class="player-list">
-        {% for player in players %}
-        <li class="player">
-            <span class="player__swatch" style="background: {{ player['player_colour'] }}"></span>
-            <span class="player__name">{{ player['username'] }}</span>
-            {% if player['is_host'] %}<span class="player__tag">Host</span>{% endif %}
-            {% if is_host and not player['is_host'] %}
-            <form method="post"
-                  action="{{ url_for('lobby.kick', join_code=game['join_code'], user_id=player['user_id']) }}">
-                <button type="submit" class="secondary outline player__kick">Remove</button>
-            </form>
-            {% endif %}
-        </li>
-        {% endfor %}
-    </ul>
-
-    {% if is_host %}
-        <form method="post" action="{{ url_for('lobby.start', join_code=game['join_code']) }}">
-            <button type="submit" {% if players|length < min_players %}disabled{% endif %}>
-                Start Game
-            </button>
-        </form>
-        {% if players|length < min_players %}
-        <p class="form-hint">You need at least {{ min_players }} players to start.</p>
-        {% endif %}
-    {% else %}
-        <p class="form-hint">Waiting for the host to start the game...</p>
-    {% endif %}
-
-    <form method="post" action="{{ url_for('lobby.leave', join_code=game['join_code']) }}">
-        <button type="submit" class="secondary outline">
-            {% if is_host %}Close lobby{% else %}Leave lobby{% endif %}
-        </button>
-    </form>
-</section>
-
-<script>
-    window.BATTLEY_GAME_ID = {{ game['game_id'] }};
-</script>
+	<p>
+		{% if is_host %}
+		<form method="post" action="{{ url_for('play.start', code=game['join_code']) }}" style="display:inline">
+			<button type="submit" {% if players|length < min_players %}disabled{% endif %}>Start game</button>
+		</form>
+		{% else %}<small>Waiting for the host to start.</small>{% endif %}
+		<form method="post" action="{{ url_for('play.leave', code=game['join_code']) }}" style="display:inline">
+			<button type="submit" class="quiet">{{ 'Close lobby' if is_host else 'Leave' }}</button>
+		</form>
+	</p>
+</article>
+{% endblock %}
+{% block scripts %}
+<script>window.GAME = { gameId: {{ game['game_id'] }} };</script>
 <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/lobby.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% endblock %}

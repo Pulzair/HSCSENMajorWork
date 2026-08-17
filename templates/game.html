@@ -1,255 +1,198 @@
 {% extends "base.html" %}
+{% set wide = true %}
 
-{% block title %}Game {{ game['join_code'] }} - Battley{% endblock %}
+{% block title %}Turn {{ game['current_turn'] }} - Battley{% endblock %}
 
 {% block content %}
-<section class="game">
-    <h2>{{ game_map['name'] if game_map else 'Game' }}</h2>
-    <p class="form-hint">Game {{ game['join_code'] }} &middot; Turn {{ game['current_turn'] }}
-        &middot; {{ game['global_resources'] }} resources left in the world</p>
+<div class="topbar">
+	<span class="topbar__item"><strong>{{ budget }}</strong> resources</span>
+	<span class="topbar__item"><strong>{{ game['global_resources'] }}</strong> world pool</span>
+	<span class="topbar__item"><strong>Turn {{ game['current_turn'] }}</strong></span>
+	<span class="topbar__item">{{ status['ready'] }} of {{ status['total'] }} ready</span>
+	<span class="topbar__item topbar__stock">
+		{% if stock %}{% for item in stock %}<span class="tag tag--on">{{ item }}</span>{% endfor %}{% else %}<span class="tag">no special resources</span>{% endif %}
+	</span>
+	<span class="spacer"></span>
+	{% if seconds_left is not none %}<span class="clock" id="clock" data-seconds="{{ seconds_left }}" data-resolve="{{ url_for('play.force_resolve', code=game['join_code']) }}">--:--</span>{% endif %}
+	<button type="button" id="openPacts" class="small quiet">Diplomacy{% if pacts['incoming'] %} ({{ pacts['incoming']|length }}){% endif %}</button>
+</div>
 
-    <div class="layer-tabs" role="tablist">
-        {% for layer in layers %}
-        <button type="button" role="tab" class="layer-tab{% if loop.first %} is-active{% endif %}"
-                data-layer="{{ layer }}" aria-selected="{{ 'true' if loop.first else 'false' }}">
-            {{ layer|capitalize }}
-        </button>
-        {% endfor %}
-    </div>
+<section class="play">
+	<div class="board">
+		<div class="board__bar">
+			<div class="layers" role="group" aria-label="Map layer">
+				{% for layer in board['layers'] %}
+				<button type="button" class="small" data-layer="{{ loop.index0 }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ layer|capitalize }}</button>
+				{% endfor %}
+			</div>
+			<span class="spacer"></span>
+			<output id="hint">Click one of your units or cities.</output>
+		</div>
+		<canvas id="viewport" width="960" height="600" aria-label="Game map"></canvas>
+		<div class="pad" role="group" aria-label="Pan the map">
+			<button type="button" class="up" data-pan="up" aria-label="Pan up">&uarr;</button>
+			<button type="button" class="left" data-pan="left" aria-label="Pan left">&larr;</button>
+			<button type="button" class="mid" data-pan="home" aria-label="Centre on your land">home</button>
+			<button type="button" class="right" data-pan="right" aria-label="Pan right">&rarr;</button>
+			<button type="button" class="down" data-pan="down" aria-label="Pan down">&darr;</button>
+		</div>
+	</div>
 
-    {% for layer in layers %}
-    <div class="map-layer{% if not loop.first %} is-hidden{% endif %}" data-layer="{{ layer }}">
-        <div class="map-grid" style="grid-template-columns: repeat({{ board['width'] }}, 1fr);">
-            {% for cell in board['grids'][layer] %}
-                {% if not cell %}
-                <div class="cell cell--empty"></div>
-                {% elif cell['state'] == 'hidden' %}
-                <div class="cell cell--hidden" title="Unexplored"></div>
-                {% else %}
-                <div class="cell cell--{{ cell['terrain'] }}{% if cell['state'] == 'explored' %} cell--fogged{% endif %}"
-                     {% if cell['owner_colour'] %}style="box-shadow: inset 0 0 0 3px {{ cell['owner_colour'] }};"{% endif %}
-                     title="{{ cell['terrain']|capitalize }} &middot; {{ cell['resources'] }} resources{% if cell['natural_resource'] %} &middot; {{ cell['natural_resource'] }}{% endif %}{% if cell['improvement'] %} &middot; {{ cell['improvement']['name'] }}{% endif %}{% if cell['owner_name'] %} &middot; held by {{ cell['owner_name'] }}{% endif %}{% if cell['state'] == 'explored' %} &middot; remembered, not in sight{% endif %}{% for unit in cell['units'] %}&#10;{{ unit['name'] }} ({{ unit['health'] }} hp) - {{ unit['owner_name'] }}{% endfor %}">
-                    {% if cell['has_city'] %}<span class="cell__city">&#9632;</span>{% endif %}
-                    {% if cell['improvement'] %}
-                    <span class="cell__improvement">{{ cell['improvement']['name'][0] }}</span>
-                    {% endif %}
-                    {% if cell['natural_resource'] %}
-                    <span class="cell__resource" title="{{ cell['natural_resource'] }}">&#9670;</span>
-                    {% endif %}
-                    {% if cell['units'] %}
-                    <span class="cell__units" style="background: {{ cell['units'][0]['colour'] }}">{{ cell['units']|length }}</span>
-                    {% endif %}
-                </div>
-                {% endif %}
-            {% endfor %}
-        </div>
-    </div>
-    {% endfor %}
+	<aside class="side">
+		<section>
+			<h3>Selected unit</h3>
+			<div id="unitActions" class="unit-actions"><small>No unit selected.</small></div>
+		</section>
 
-    <h3>Terrain</h3>
-    <ul class="legend">
-        <li><span class="legend__swatch cell--plains"></span>Plains</li>
-        <li><span class="legend__swatch cell--mountain"></span>Mountain</li>
-        <li><span class="legend__swatch cell--water"></span>Water</li>
-        <li><span class="legend__swatch legend__swatch--city">&#9632;</span>City</li>
-        <li><span class="legend__swatch cell--plains cell--fogged"></span>Remembered</li>
-        <li><span class="legend__swatch cell--hidden"></span>Unexplored</li>
-    </ul>
+		<section>
+			<h3>Orders <span id="idleCount"></span></h3>
+			<ul class="orders" id="orderList"></ul>
+		</section>
 
-    <h3>Your orders</h3>
-    {% if seconds_left is not none %}
-    <p class="turn-timer" id="turnTimer" data-seconds="{{ seconds_left }}"
-       data-resolve-url="{{ url_for('lobby.force_resolve', join_code=game['join_code']) }}">
-        Time left: <span id="turnTimerValue">--:--</span>
-    </p>
-    {% endif %}
-    <p class="form-hint">You have {{ budget }} resources. Orders stay secret until every
-        player has submitted, then they all resolve together. When the timer runs out
-        whatever you have selected is submitted and anything left on hold stays put.</p>
+		<section>
+			<h3>Players</h3>
+			<ul>
+				{% for player in players %}
+				<li>
+					<span class="swatch" style="background: {{ player['player_colour'] }}"></span>
+					{{ player['username'] }}
+					<span class="spacer">
+						{% if player['is_eliminated'] %}out{% elif player['submitted_turn'] == game['current_turn'] %}ready{% else %}thinking{% endif %}
+					</span>
+				</li>
+				{% endfor %}
+			</ul>
+		</section>
 
-    {% if submitted %}
-    <p class="orders__locked">Orders locked in for turn {{ game['current_turn'] }}.
-        Waiting for {{ status['total'] - status['ready'] }} more player(s).</p>
-    {% else %}
-    <form id="ordersForm" method="post"
-          action="{{ url_for('lobby.submit_orders', join_code=game['join_code']) }}">
-        {% for unit in my_units %}
-        <div class="form-field">
-            <label for="unit_{{ unit['unit_id'] }}">
-                {{ unit_specs[unit['unit_type']]['name'] }}
-                ({{ unit['health'] }} hp, {{ unit['layer'] }})
-            </label>
-            <select id="unit_{{ unit['unit_id'] }}" name="unit_{{ unit['unit_id'] }}">
-                {% for token, label in unit_options[unit['unit_id']] %}
-                <option value="{{ token }}">{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        {% endfor %}
+		<section>
+			<h3>Standing</h3>
+			<p><small>Reputation {{ pacts['reputation'] }} / 100 &middot; signing costs {{ pacts['cost_modifier'] }}&times;</small></p>
+			{% if not me['is_eliminated'] %}
+			<form method="post" action="{{ url_for('play.resign', code=game['join_code']) }}" onsubmit="return confirm('Resign? Your units are removed and your land goes neutral. This cannot be undone.');">
+				<button type="submit" class="quiet small">Resign</button>
+			</form>
+			{% endif %}
+		</section>
 
-        {% for territory_id, choices in city_options.items() %}
-        <div class="form-field">
-            <label for="city_{{ territory_id }}">Produce at {{ tile_names[territory_id] }}</label>
-            <select id="city_{{ territory_id }}" name="city_{{ territory_id }}">
-                {% for token, label in choices %}
-                <option value="{{ token }}" {% if not token %}disabled{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        {% endfor %}
+		<section>
+			<h3>Map key</h3>
+			<ul class="key">
+				<li><canvas class="keyicon" data-icon="crossing" width="26" height="26"></canvas> Crossing &mdash; stand here to change layer</li>
+				<li><canvas class="keyicon" data-icon="city" width="26" height="26"></canvas> City &mdash; produces units</li>
+				<li><canvas class="keyicon" data-icon="barracks" width="26" height="26"></canvas> Barracks &mdash; produces on its own layer</li>
+				<li><canvas class="keyicon" data-icon="iron" width="26" height="26"></canvas> Iron &mdash; unlocks catapult, submarine</li>
+				<li><canvas class="keyicon" data-icon="horses" width="26" height="26"></canvas> Horses &mdash; unlocks horseman</li>
+				<li><canvas class="keyicon" data-icon="fog" width="26" height="26"></canvas> Unexplored</li>
+			</ul>
+		</section>
 
-        {% if improve_options %}
-        <h3>Develop your land</h3>
-        {% for territory_id, choices in improve_options.items() %}
-        <div class="form-field">
-            <label for="improve_{{ territory_id }}">{{ tile_names[territory_id] }}</label>
-            <select id="improve_{{ territory_id }}" name="improve_{{ territory_id }}">
-                {% for token, label in choices %}
-                <option value="{{ token }}" {% if not token %}disabled{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        {% endfor %}
-        {% endif %}
-
-        <button type="submit">Submit orders</button>
-    </form>
-    {% endif %}
-
-    <h3>Players ({{ status['ready'] }} of {{ status['total'] }} ready)</h3>
-    <ul class="player-list">
-        {% for player in players %}
-        <li class="player">
-            <span class="player__swatch" style="background: {{ player['player_colour'] }}"></span>
-            <span class="player__name">{{ player['username'] }}</span>
-            {% if player['user_id'] == g.user['user_id'] %}<span class="player__tag">You</span>{% endif %}
-            {% if player['submitted_turn'] == game['current_turn'] %}
-            <span class="player__tag player__tag--ready">Ready</span>
-            {% endif %}
-        </li>
-        {% endfor %}
-    </ul>
-    <h3>Diplomacy</h3>
-    <p class="form-hint">
-        Your reputation is {{ diplomacy_board['reputation'] }} / 100.
-        Signing costs {{ diplomacy_board['cost_modifier'] }}&times; the base price while it stays there.
-        Breaking a deal costs you reputation and makes every future deal dearer.
-    </p>
-
-    {% if diplomacy_board['incoming'] %}
-    <ul class="deal-list">
-        {% for deal in diplomacy_board['incoming'] %}
-        <li class="deal deal--offer">
-            <span class="deal__text">
-                <strong>{{ deal['other_name'] }}</strong> offers a {{ deal['kind_name']|lower }}
-                {% if deal['agreement_type'] == 'trade' %}
-                    &mdash; they give {{ deal['terms']['offer'] }}, you give {{ deal['terms']['request'] }}
-                {% else %}
-                    for {{ deal['turns_remaining'] }} turns
-                {% endif %}
-            </span>
-            <form method="post" class="deal__actions"
-                  action="{{ url_for('lobby.respond_deal', join_code=game['join_code'], agreement_id=deal['agreement_id']) }}">
-                <button type="submit" name="answer" value="accept">Accept</button>
-                <button type="submit" name="answer" value="decline" class="secondary">Decline</button>
-            </form>
-        </li>
-        {% endfor %}
-    </ul>
-    {% endif %}
-
-    {% if diplomacy_board['active'] %}
-    <ul class="deal-list">
-        {% for deal in diplomacy_board['active'] %}
-        <li class="deal deal--active">
-            <span class="deal__text">
-                {{ deal['kind_name'] }} with <strong>{{ deal['other_name'] }}</strong>
-                &mdash; {{ deal['turns_remaining'] }} turns left
-            </span>
-        </li>
-        {% endfor %}
-    </ul>
-    {% endif %}
-
-    {% if diplomacy_board['outgoing'] %}
-    <ul class="deal-list">
-        {% for deal in diplomacy_board['outgoing'] %}
-        <li class="deal deal--pending">
-            <span class="deal__text">
-                Waiting on <strong>{{ deal['other_name'] }}</strong> for a {{ deal['kind_name']|lower }}
-            </span>
-            <form method="post" class="deal__actions"
-                  action="{{ url_for('lobby.respond_deal', join_code=game['join_code'], agreement_id=deal['agreement_id']) }}">
-                <button type="submit" name="answer" value="withdraw" class="secondary">Withdraw</button>
-            </form>
-        </li>
-        {% endfor %}
-    </ul>
-    {% endif %}
-
-    {% if not me_player['is_eliminated'] and diplomacy_board['partners'] %}
-    <form method="post" class="deal-form"
-          action="{{ url_for('lobby.propose_deal', join_code=game['join_code']) }}">
-        <div class="form-field">
-            <label for="recipient_id">Offer a deal to</label>
-            <select id="recipient_id" name="recipient_id">
-                {% for partner in diplomacy_board['partners'] %}
-                <option value="{{ partner['user_id'] }}">{{ partner['username'] }} (reputation {{ partner['reputation'] }})</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-field">
-            <label for="agreement_type">Deal</label>
-            <select id="agreement_type" name="agreement_type">
-                <option value="non_aggression">Non-aggression pact ({{ diplomacy_board['costs']['non_aggression'] }})</option>
-                <option value="alliance">Alliance ({{ diplomacy_board['costs']['alliance'] }})</option>
-                <option value="trade">Resource trade</option>
-            </select>
-        </div>
-        <div class="form-field">
-            <label for="turns">Length in turns (pacts only)</label>
-            <input type="number" id="turns" name="turns" value="5"
-                   min="{{ diplomacy_board['min_turns'] }}" max="{{ diplomacy_board['max_turns'] }}">
-        </div>
-        <div class="form-field">
-            <label for="offer">You give (trade only)</label>
-            <input type="number" id="offer" name="offer" value="0" min="0" max="{{ budget }}">
-        </div>
-        <div class="form-field">
-            <label for="request">They give (trade only)</label>
-            <input type="number" id="request" name="request" value="0" min="0">
-        </div>
-        <button type="submit">Send offer</button>
-    </form>
-    {% endif %}
-
-    {% if diplomacy_board['history'] %}
-    <ul class="deal-list deal-list--history">
-        {% for deal in diplomacy_board['history'] %}
-        <li class="deal deal--{{ deal['status'] }}">
-            <span class="deal__text">
-                {{ deal['kind_name'] }} with {{ deal['other_name'] }} &mdash; {{ deal['status'] }}
-                {% if deal['status'] == 'breached' and deal['breached_by'] %}
-                    (broken turn {{ deal['breached_turn'] }})
-                {% endif %}
-            </span>
-        </li>
-        {% endfor %}
-    </ul>
-    {% endif %}
-
-    {% if not me_player['is_eliminated'] %}
-    <form method="post"
-          action="{{ url_for('lobby.resign', join_code=game['join_code']) }}"
-          onsubmit="return confirm('Resign from this game? Your units are removed and your territory goes neutral. This cannot be undone.');">
-        <button type="submit">Resign from game</button>
-    </form>
-    {% endif %}
+		{% if disasters %}
+		<section>
+			<h3>Disasters</h3>
+			<ul>
+				{% for event in disasters %}
+				<li>{{ event['name'] }}<span class="spacer">turn {{ event['turn_number'] }}</span></li>
+				{% endfor %}
+			</ul>
+		</section>
+		{% endif %}
+	</aside>
 </section>
 
+<div class="submitbar">
+	<output id="submitNote"></output>
+	<button type="button" id="send" {% if submitted %}disabled{% endif %}>{{ 'Orders locked in' if submitted else 'Submit orders' }}</button>
+</div>
+
+<div class="sheet" id="pactSheet" hidden>
+	<article class="sheet__panel stack">
+		<h2>Diplomacy <button type="button" class="quiet small" id="closePacts">Close</button></h2>
+
+		{% for deal in pacts['incoming'] %}
+		<div class="deal deal--offer">
+			<strong>{{ deal['other_name'] }}</strong> offers a {{ deal['kind_name']|lower }}
+			{% if deal['agreement_type'] == 'trade' %}&mdash; they give {{ deal['terms']['offer'] }}, you give {{ deal['terms']['request'] }}{% else %}for {{ deal['turns_remaining'] }} turns{% endif %}
+			<form method="post" action="{{ url_for('play.answer_pact', code=game['join_code'], agreement_id=deal['agreement_id']) }}">
+				<button type="submit" name="answer" value="accept" class="small">Accept</button>
+				<button type="submit" name="answer" value="decline" class="small quiet">Decline</button>
+			</form>
+		</div>
+		{% endfor %}
+
+		{% for deal in pacts['active'] %}
+		<div class="deal deal--active">{{ deal['kind_name'] }} with <strong>{{ deal['other_name'] }}</strong> &mdash; {{ deal['turns_remaining'] }} turns left</div>
+		{% endfor %}
+
+		{% for deal in pacts['outgoing'] %}
+		<div class="deal">
+			Waiting on <strong>{{ deal['other_name'] }}</strong> for a {{ deal['kind_name']|lower }}
+			<form method="post" action="{{ url_for('play.answer_pact', code=game['join_code'], agreement_id=deal['agreement_id']) }}">
+				<button type="submit" name="answer" value="withdraw" class="small quiet">Withdraw</button>
+			</form>
+		</div>
+		{% endfor %}
+
+		{% if not me['is_eliminated'] and pacts['partners'] %}
+		<form method="post" action="{{ url_for('play.propose_pact', code=game['join_code']) }}">
+			<h3>Offer a deal</h3>
+			<div class="field">
+				<label for="recipient_id">Player</label>
+				<select id="recipient_id" name="recipient_id">
+					{% for partner in pacts['partners'] %}<option value="{{ partner['user_id'] }}">{{ partner['username'] }} (reputation {{ partner['reputation'] }})</option>{% endfor %}
+				</select>
+			</div>
+			<div class="field">
+				<label for="kind">Deal</label>
+				<select id="kind" name="kind">
+					<option value="non_aggression">Non-aggression pact ({{ pacts['costs']['non_aggression'] }})</option>
+					<option value="alliance">Alliance ({{ pacts['costs']['alliance'] }})</option>
+					<option value="trade">Resource trade</option>
+				</select>
+			</div>
+			<div class="row">
+				<div class="field"><label for="turns">Turns</label><input type="number" id="turns" name="turns" value="5" min="{{ pacts['min_turns'] }}" max="{{ pacts['max_turns'] }}"></div>
+				<div class="field"><label for="offer">You give</label><input type="number" id="offer" name="offer" value="0" min="0" max="{{ budget }}"></div>
+				<div class="field"><label for="request">They give</label><input type="number" id="request" name="request" value="0" min="0"></div>
+			</div>
+			<button type="submit">Send offer</button>
+		</form>
+		{% endif %}
+
+		{% if pacts['history'] %}
+		<h3>Earlier</h3>
+		{% for deal in pacts['history'] %}
+		<div class="deal"><small>{{ deal['kind_name'] }} with {{ deal['other_name'] }} &mdash; {{ deal['status'] }}</small></div>
+		{% endfor %}
+		{% endif %}
+	</article>
+</div>
+
+<div class="sheet" id="buildSheet" hidden>
+	<article class="sheet__panel stack">
+		<h2>Production <button type="button" class="quiet small" id="closeBuild">Close</button></h2>
+		<div id="buildOptions"></div>
+	</article>
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
-    window.BATTLEY_GAME_ID = {{ game['game_id'] }};
+	window.GAME = {
+		code: {{ game['join_code']|tojson }},
+		gameId: {{ game['game_id'] }},
+		userId: {{ g.user['user_id'] }},
+		turn: {{ game['current_turn'] }},
+		submitted: {{ submitted|tojson }},
+		width: {{ board['width'] }},
+		height: {{ board['height'] }},
+		layers: {{ board['layers']|tojson }},
+		tiles: {{ board['tiles']|tojson }},
+		moves: {{ moves|tojson }},
+		stock: {{ stock|tojson }},
+		sites: {{ sites|tojson }},
+		ordersUrl: {{ url_for('play.submit_orders', code=game['join_code'])|tojson }}
+	};
 </script>
 <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/game.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Guide - Battley{% endblock %}
+{% block content %}
+<article class="stack">
+	<h1>How to play</h1>
+	<section><h3>The basics</h3><p>What the game is and what a player is trying to do.</p></section>
+	<section><h3>Turns</h3><p>Everyone gives orders at the same time and they all resolve together. The timer grows as your empire does.</p></section>
+	<section><h3>The three layers</h3><p>Land, underground and sky, and how units cross between them at transition points.</p></section>
+	<section><h3>Giving orders</h3><p>Click one of your units to select it, then click a highlighted tile to move or attack. Click one of your cities to open its production panel.</p></section>
+
+	<section>
+		<h3>Units</h3>
+		<table>
+			<thead><tr><th>Unit</th><th>Layers</th><th>Attack</th><th>Defence</th><th>Health</th><th>Move</th><th>Vision</th><th>Cost</th></tr></thead>
+			<tbody>
+				{% for layer, entries in roster.items() %}{% for unit in entries %}
+				<tr><td>{{ unit['name'] }}</td><td>{{ unit['layers']|join(', ') }}</td><td>{{ unit['attack'] }}</td><td>{{ unit['defence'] }}</td><td>{{ unit['health'] }}</td><td>{{ unit['movement'] }}</td><td>{{ unit['vision'] }}</td><td>{{ unit['cost'] }}</td></tr>
+				{% endfor %}{% endfor %}
+			</tbody>
+		</table>
+	</section>
+
+	<section>
+		<h3>Disasters</h3>
+		<table>
+			<thead><tr><th>Event</th><th>Layers</th><th>Radius</th><th>Damage</th></tr></thead>
+			<tbody>{% for key, spec in disasters.items() %}<tr><td>{{ spec['name'] }}</td><td>{{ spec['layers']|join(', ') }}</td><td>{{ spec['radius'] }}</td><td>{{ spec['unit_damage'] }}</td></tr>{% endfor %}</tbody>
+		</table>
+	</section>
+
+	<section><h3>Diplomacy</h3><p>Pacts, alliances and trades, and what breaking one costs you.</p></section>
+	<section><h3>Winning</h3><p>Hold enough of the map, or outlast everyone else.</p></section>
+</article>
+{% endblock %}

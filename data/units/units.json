@@ -14,7 +14,9 @@
         "movement": 1,
         "vision": 1,
         "cost": 25,
-        "description": "Cheap frontline melee. The backbone of an early army and the only unit most players can afford on turn one."
+        "description": "Cheap frontline melee. The backbone of an early army and the only unit most players can afford on turn one.",
+        "range": 1,
+        "ranged": false
     },
     "archer": {
         "name": "Archer",
@@ -31,7 +33,9 @@
         "movement": 1,
         "vision": 1,
         "cost": 35,
-        "description": "Hits hard but folds under a counter-attack. Best kept behind a Warrior."
+        "description": "Hits hard but folds under a counter-attack. Best kept behind a Warrior.",
+        "range": 2,
+        "ranged": true
     },
     "horseman": {
         "name": "Horseman",
@@ -48,7 +52,9 @@
         "vision": 2,
         "cost": 45,
         "requires": "horses",
-        "description": "Fast flanker that cannot climb mountains. Punishes undefended territory."
+        "description": "Fast flanker that cannot climb mountains. Punishes undefended territory.",
+        "range": 1,
+        "ranged": false
     },
     "catapult": {
         "name": "Catapult",
@@ -65,7 +71,9 @@
         "vision": 1,
         "cost": 60,
         "requires": "iron",
-        "description": "Siege engine built to crack cities. Nearly helpless if caught in the open."
+        "description": "Siege engine built to crack cities. Nearly helpless if caught in the open.",
+        "range": 2,
+        "ranged": true
     },
     "trireme": {
         "name": "Trireme",
@@ -81,7 +89,9 @@
         "movement": 2,
         "vision": 2,
         "cost": 40,
-        "description": "Controls the lake. Cannot leave water, but nothing crosses without answering to it."
+        "description": "Controls the lake. Cannot leave water, but nothing crosses without answering to it.",
+        "range": 2,
+        "ranged": true
     },
     "submarine": {
         "name": "Submarine",
@@ -98,7 +108,9 @@
         "vision": 2,
         "cost": 70,
         "requires": "iron",
-        "description": "Runs silent beneath the surface. Strikes first and hard, but cannot take a hit."
+        "description": "Runs silent beneath the surface. Strikes first and hard, but cannot take a hit.",
+        "range": 2,
+        "ranged": true
     },
     "skimmer": {
         "name": "Sky Skimmer",
@@ -114,7 +126,9 @@
         "movement": 3,
         "vision": 3,
         "cost": 35,
-        "description": "Fast, fragile scout. Bought to see, not to fight - the cheapest way to burn off fog."
+        "description": "Fast, fragile scout. Bought to see, not to fight - the cheapest way to burn off fog.",
+        "range": 1,
+        "ranged": false
     },
     "airship": {
         "name": "Airship",
@@ -130,7 +144,9 @@
         "movement": 2,
         "vision": 2,
         "cost": 70,
-        "description": "The workhorse gunship of the sky lanes. Solid attack, solid armour, no bad matchups."
+        "description": "The workhorse gunship of the sky lanes. Solid attack, solid armour, no bad matchups.",
+        "range": 1,
+        "ranged": false
     },
     "dropship": {
         "name": "Dropship",
@@ -148,7 +164,9 @@
         "movement": 2,
         "vision": 1,
         "cost": 65,
-        "description": "Armoured transport that can descend to the surface at a transition point. Almost no attack - it exists to move and survive."
+        "description": "Armoured transport that can descend to the surface at a transition point. Almost no attack - it exists to move and survive.",
+        "range": 1,
+        "ranged": false
     },
     "stormcaller": {
         "name": "Stormcaller",
@@ -164,7 +182,9 @@
         "movement": 1,
         "vision": 1,
         "cost": 85,
-        "description": "Aerial artillery. Devastating from above and slow to reposition."
+        "description": "Aerial artillery. Devastating from above and slow to reposition.",
+        "range": 3,
+        "ranged": true
     },
     "tunneler": {
         "name": "Tunneler",
@@ -182,7 +202,9 @@
         "movement": 2,
         "vision": 1,
         "cost": 50,
-        "description": "Subterranean transport that surfaces at transition points. Tough, but a poor attacker."
+        "description": "Subterranean transport that surfaces at transition points. Tough, but a poor attacker.",
+        "range": 1,
+        "ranged": false
     },
     "dire_bat": {
         "name": "Dire Bat",
@@ -200,7 +222,9 @@
         "movement": 3,
         "vision": 3,
         "cost": 30,
-        "description": "Boils out of the caves and into the sky. The only unit that scouts two layers."
+        "description": "Boils out of the caves and into the sky. The only unit that scouts two layers.",
+        "range": 1,
+        "ranged": false
     },
     "basilisk": {
         "name": "Basilisk",
@@ -217,7 +241,9 @@
         "movement": 1,
         "vision": 1,
         "cost": 75,
-        "description": "Its gaze turns the tunnels to stone. Slow, blind above ground, lethal below it."
+        "description": "Its gaze turns the tunnels to stone. Slow, blind above ground, lethal below it.",
+        "range": 1,
+        "ranged": false
     },
     "stone_golem": {
         "name": "Stone Golem",
@@ -234,7 +260,9 @@
         "movement": 1,
         "vision": 1,
         "cost": 80,
-        "description": "Quarried, not born. The hardest thing to shift out of a tunnel in the game."
+        "description": "Quarried, not born. The hardest thing to shift out of a tunnel in the game.",
+        "range": 1,
+        "ranged": false
     },
     "cave_wyrm": {
         "name": "Cave Wyrm",
@@ -251,6 +279,8 @@
         "movement": 2,
         "vision": 2,
         "cost": 95,
-        "description": "The deep's apex predator. Hits harder than anything else in the world and costs accordingly."
+        "description": "The deep's apex predator. Hits harder than anything else in the world and costs accordingly.",
+        "range": 1,
+        "ranged": false
     }
 }

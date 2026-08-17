@@ -1,84 +1,76 @@
 {% extends "base.html" %}
-
 {% block title %}Dashboard - Battley{% endblock %}
-
 {% block content %}
-<section class="dashboard">
-    <h2>Welcome, {{ g.user['username'] }}</h2>
+<article class="stack">
+	<h1>{{ g.user['username'] }}</h1>
 
-    <h3>Start a game</h3>
-    <p class="form-hint">Creates a private lobby and gives you a code to share.</p>
-    <form method="post" action="{{ url_for('lobby.create') }}">
-        <button type="submit">Create a game</button>
-    </form>
+	<section class="row">
+		<form method="post" action="{{ url_for('play.create') }}"><button type="submit">Create a game</button></form>
+		<form method="post" action="{{ url_for('play.join') }}" class="row">
+			<div class="field"><label for="code">Join code</label><input type="text" id="code" name="code" maxlength="6" minlength="6" autocomplete="off" required></div>
+			<div class="field"><button type="submit" class="quiet">Join</button></div>
+		</form>
+	</section>
 
-    <h3>Join a game</h3>
-    <form method="post" action="{{ url_for('lobby.join') }}">
-        <div class="form-field">
-            <label for="join_code">Join code</label>
-            <input type="text" id="join_code" name="join_code"
-                   maxlength="6" minlength="6" autocomplete="off" required>
-        </div>
-        <button type="submit" class="secondary">Join game</button>
-    </form>
+	<section>
+		<h3>Record</h3>
+		<div class="tiles">
+			<div><strong>{{ stats['played'] }}</strong><span>played</span></div>
+			<div><strong>{{ stats['won'] }}</strong><span>won</span></div>
+			<div><strong>{{ stats['drawn'] }}</strong><span>drawn</span></div>
+			<div><strong>{{ stats['lost'] }}</strong><span>lost</span></div>
+			<div><strong>{{ stats['win_rate'] }}%</strong><span>win rate</span></div>
+			<div><strong>{{ stats['reputation'] }}</strong><span>reputation</span></div>
+			<div><strong>{{ stats['resources'] }}</strong><span>resources banked</span></div>
+		</div>
+	</section>
 
-    <h3>Your record</h3>
-    <ul class="record">
-        <li class="record__stat"><span class="record__value">{{ stats['played'] }}</span>played</li>
-        <li class="record__stat"><span class="record__value">{{ stats['won'] }}</span>won</li>
-        <li class="record__stat"><span class="record__value">{{ stats['lost'] }}</span>lost</li>
-        <li class="record__stat"><span class="record__value">{{ stats['win_rate'] }}%</span>win rate</li>
-        <li class="record__stat"><span class="record__value">{{ stats['avg_turns'] }}</span>avg turns</li>
-        <li class="record__stat"><span class="record__value">{{ stats['reputation'] }}</span>reputation</li>
-    </ul>
-    {% if stats['in_progress'] %}
-    <p class="form-hint">{{ stats['in_progress'] }} game(s) still in progress.</p>
-    {% endif %}
+	{% if running %}
+	<section>
+		<h3>Games in progress</h3>
+		<table>
+			<thead><tr><th>Code</th><th>Map</th><th>Turn</th><th>Resources</th><th>Land</th><th>Units</th><th></th></tr></thead>
+			<tbody>
+				{% for row in running %}
+				<tr>
+					<td>{{ row['join_code'] }}</td>
+					<td>{{ row['map_name'] if not row['board_size'] else (row['board_size'] ~ 'x' ~ row['board_size'] ~ ' generated') }}</td>
+					<td>{{ row['current_turn'] }}</td>
+					<td><strong>{{ row['resources'] }}</strong></td>
+					<td>{{ row['territories'] }}</td>
+					<td>{{ row['units'] }}</td>
+					<td><a class="button small" href="{{ url_for('play.game', code=row['join_code']) }}">Resume</a></td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</section>
+	{% endif %}
 
-    <h3>Last {{ recent|length }} match{{ 'es' if recent|length != 1 else '' }}</h3>
-    {% if not recent %}
-    <p class="form-hint">No finished games yet. Your last three will show up here.</p>
-    {% else %}
-    {% for match in recent %}
-    <article class="match {{ 'match--won' if match['won'] else '' }}">
-        <header class="match__head">
-            <strong>{{ match['map_name'] or 'Unknown map' }}</strong>
-            <span class="match__meta">
-                {{ match['completed_at'][:10] if match['completed_at'] else '' }}
-                &middot; {{ match['current_turn'] }} turns
-                &middot; code {{ match['join_code'] }}
-            </span>
-            <span class="match__result">
-                {% if match['won'] %}Won{% elif match['placing'] %}Placed {{ match['placing'] }}{% else %}Lost{% endif %}
-            </span>
-        </header>
-
-        <table class="match__table">
-            <thead>
-                <tr><th>Player</th><th>Territory</th><th>Units</th><th>Resources</th></tr>
-            </thead>
-            <tbody>
-                {% for row in match['standings'] %}
-                <tr class="{{ 'match__row--me' if row['user_id'] == g.user['user_id'] else '' }}">
-                    <td>
-                        <span class="player__swatch" style="background: {{ row['player_colour'] }}"></span>
-                        {{ row['username'] }}
-                        {% if row['user_id'] == match['winner_id'] %}<span class="match__crown">winner</span>{% endif %}
-                        {% if row['is_eliminated'] %}<span class="match__out">out</span>{% endif %}
-                    </td>
-                    <td>{{ row['territories'] }}</td>
-                    <td>{{ row['units'] }}</td>
-                    <td>{{ row['resources'] }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <p class="match__deals">
-            Deals signed: {{ match['deals_signed'] }} &middot; broken: {{ match['deals_broken'] }}
-        </p>
-    </article>
-    {% endfor %}
-    {% endif %}
-</section>
+	<section>
+		<h3>Last {{ recent|length }} match{{ 'es' if recent|length != 1 else '' }}</h3>
+		{% if not recent %}<p><small>No finished games yet.</small></p>{% endif %}
+		{% for match in recent %}
+		<div class="card">
+			<header class="card__head">
+				<strong>{{ match['map_name'] or 'Generated map' }}</strong>
+				<span class="meta">{{ match['completed_at'][:10] if match['completed_at'] else '' }} &middot; {{ match['current_turn'] }} turns &middot; {{ match['join_code'] }}</span>
+				<span class="result">{% if match['won'] %}Won{% elif match['drawn'] %}Drew{% elif match['placing'] %}{{ match['placing'] }}th{% else %}Lost{% endif %}</span>
+			</header>
+			<table>
+				<thead><tr><th>Player</th><th>Land</th><th>Units</th><th>Resources</th></tr></thead>
+				<tbody>
+					{% for row in match['standings'] %}
+					<tr class="{{ 'me' if row['user_id'] == g.user['user_id'] else '' }}">
+						<td><span class="swatch" style="background: {{ row['player_colour'] }}"></span> {{ row['username'] }}{% if row['result'] == 'win' %} <span class="tag tag--on">winner</span>{% endif %}</td>
+						<td>{{ row['territories'] }}</td><td>{{ row['units'] }}</td><td>{{ row['resources'] }}</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+			<p><small>Deals signed {{ match['deals_signed'] }} &middot; broken {{ match['deals_broken'] }}</small></p>
+		</div>
+		{% endfor %}
+	</section>
+</article>
 {% endblock %}

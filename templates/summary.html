@@ -1,45 +1,18 @@
 {% extends "base.html" %}
-
 {% block title %}Result - Battley{% endblock %}
-
 {% block content %}
-<section class="game codex">
-    <h2>Game Over</h2>
-    <p class="form-hint">{{ game_map['name'] if game_map else 'Game' }} &middot;
-        {{ game['join_code'] }} &middot; lasted {{ game['current_turn'] }} turns</p>
-
-    <div class="table-scroll">
-        <table>
-            <thead>
-                <tr>
-                    <th>Player</th>
-                    <th>Territories</th>
-                    <th>Units</th>
-                    <th>Resources</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for player in players %}
-                <tr>
-                    <td>
-                        <span class="player__swatch" style="background: {{ player['player_colour'] }}"></span>
-                        <strong>{{ player['username'] }}</strong>
-                    </td>
-                    <td>{{ player['territories'] }}</td>
-                    <td>{{ player['units'] }}</td>
-                    <td>{{ player['resources'] }}</td>
-                    <td>
-                        {% if player['username'] == winner_name %}Winner
-                        {% elif player['is_eliminated'] %}Eliminated
-                        {% else %}Survived{% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <p><a href="{{ url_for('dashboard') }}">Back to the dashboard</a></p>
-</section>
+<article class="stack">
+	<h1>{{ winner_name ~ ' wins' if winner_name else 'Drawn game' }}</h1>
+	<p class="lede">{{ game_map['name'] if game_map else 'Generated map' }} &middot; {{ game['current_turn'] }} turns &middot; {{ game['join_code'] }}</p>
+	<table>
+		<thead><tr><th>Player</th><th>Result</th><th>Land</th><th>Units</th><th>Resources</th></tr></thead>
+		<tbody>
+			{% for row in standings %}
+			<tr><td><span class="swatch" style="background: {{ row['player_colour'] }}"></span> {{ row['username'] }}</td>
+			<td>{{ row['result'] or '-' }}</td><td>{{ row['territories'] }}</td><td>{{ row['units'] }}</td><td>{{ row['resources'] }}</td></tr>
+			{% endfor %}
+		</tbody>
+	</table>
+	<p><a class="button" href="{{ url_for('dashboard') }}">Back to dashboard</a></p>
+</article>
 {% endblock %}
