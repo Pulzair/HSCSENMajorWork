@@ -97,6 +97,9 @@ CREATE TABLE Territory (
                               CHECK (terrain_type IN ('plains', 'mountain', 'water', 'destroyed')),
     has_city          INTEGER NOT NULL DEFAULT 0
                               CHECK (has_city IN (0, 1)),
+    is_capital        INTEGER NOT NULL DEFAULT 0
+                              CHECK (is_capital IN (0, 1)),
+    capital_of        INTEGER REFERENCES User(user_id) ON DELETE SET NULL,
     improvement       TEXT,
     natural_resource  TEXT,
     fog_modifier      REAL    NOT NULL DEFAULT 1.0

@@ -58,5 +58,39 @@
         "allows_production": true,
         "description": "A military district on its own tile. Units can be built here as well as at your city, so your army no longer has to come from one place.",
         "icon": "barracks"
+    },
+    "gateway": {
+        "name": "Layer Gateway",
+        "layers": [
+            "land",
+            "underground",
+            "sky"
+        ],
+        "terrain": [
+            "plains",
+            "mountain"
+        ],
+        "cost": 70,
+        "resource_bonus": 0,
+        "allows_production": false,
+        "opens_layer": true,
+        "icon": "gateway",
+        "description": "Sinks a shaft and raises a mast, turning the tile into a crossing between layers."
+    },
+    "hub": {
+        "name": "Commercial Hub",
+        "layers": [
+            "land",
+            "underground",
+            "sky"
+        ],
+        "terrain": [
+            "plains"
+        ],
+        "cost": 55,
+        "resource_bonus": 12,
+        "allows_production": false,
+        "icon": "hub",
+        "description": "A market district. The largest passive income of any improvement."
     }
 }

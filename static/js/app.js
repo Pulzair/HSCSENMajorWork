@@ -310,6 +310,7 @@ const state = {
 	selected: null,
 	orders: new Map(),
 	builds: new Map(),
+	holds: new Set(),
 	nagged: false
 };
 
@@ -415,6 +416,11 @@ function draw() {
 			if (tile.resource) drawResource(ctx, px, py, CELL, tile.resource);
 			if (tile.improvement) drawImprovement(ctx, px, py, CELL, tile.improvement_key);
 			if (tile.city) drawCity(ctx, px, py, CELL, tile.colour);
+			if (tile.capital) {
+				ctx.strokeStyle = INK;
+				ctx.lineWidth = 2;
+				ctx.strokeRect(px + 3, py + 3, CELL - 6, CELL - 6);
+			}
 
 			if (tile.units && tile.units.length) {
 				const top = tile.units[0];
@@ -467,6 +473,16 @@ function draw() {
 	}
 }
 
+function describeTile(tile) {
+	let text = tile.terrain;
+	if (tile.resource) text += ` (${tile.resource})`;
+	if (tile.city) text += tile.capital ? ", home city" : ", city";
+	if (tile.improvement) text += `, ${tile.improvement}`;
+	if (tile.crossing) text += ", crossing";
+	text += tile.owner ? ` - held by ${tile.owner}` : " - unclaimed";
+	return `${text}. Yields ${tile.resources} per turn.`;
+}
+
 function say(message) {
 	if (hint) hint.textContent = message;
 }
@@ -480,6 +496,10 @@ function renderUnitActions() {
 	if (!holder) return;
 	holder.innerHTML = "";
 
+	if (window.GAME.submitted) {
+		holder.innerHTML = "<small>Orders are locked in for this turn.</small>";
+		return;
+	}
 	if (!state.selected || state.selected.kind !== "unit") {
 		holder.innerHTML = "<small>No unit selected.</small>";
 		return;
@@ -515,6 +535,23 @@ function renderUnitActions() {
 		note.innerHTML = entry.on_crossing ? "<small>On a crossing, but the far side is blocked.</small>" : "<small>Can change layer, but must first stand on a ringed crossing tile.</small>";
 		holder.appendChild(note);
 	}
+
+	const hold = document.createElement("button");
+	hold.type = "button";
+	hold.className = "small quiet";
+	hold.textContent = state.holds.has(entry.unit_id) ? "Holding" : "Hold position";
+	hold.addEventListener("click", () => {
+		if (state.holds.has(entry.unit_id)) {
+			state.holds.delete(entry.unit_id);
+		} else {
+			state.holds.add(entry.unit_id);
+			state.orders.delete(entry.unit_id);
+		}
+		renderOrders();
+		renderUnitActions();
+		draw();
+	});
+	holder.appendChild(hold);
 
 	const jump = document.createElement("button");
 	jump.type = "button";
@@ -563,7 +600,20 @@ function renderOrders() {
 		list.appendChild(item);
 	});
 
-	if (!state.orders.size && !state.builds.size) {
+	state.holds.forEach(unitId => {
+		const entry = window.GAME.moves[unitId];
+		const item = document.createElement("li");
+		item.textContent = `${entry ? entry.name : "Unit"} holds position`;
+		const drop = document.createElement("button");
+		drop.type = "button";
+		drop.className = "drop";
+		drop.textContent = "x";
+		drop.addEventListener("click", () => { state.holds.delete(unitId); renderOrders(); renderUnitActions(); draw(); });
+		item.appendChild(drop);
+		list.appendChild(item);
+	});
+
+	if (!state.orders.size && !state.builds.size && !state.holds.size) {
 		const item = document.createElement("li");
 		item.innerHTML = "<small>Nothing ordered yet.</small>";
 		list.appendChild(item);
@@ -573,7 +623,7 @@ function renderOrders() {
 }
 
 function idleUnits() {
-	return Object.values(window.GAME.moves).filter(entry => !state.orders.has(entry.unit_id) && entry.moves.length);
+	return Object.values(window.GAME.moves).filter(entry => !state.orders.has(entry.unit_id) && !state.holds.has(entry.unit_id) && entry.moves.length);
 }
 
 function updatePrompt() {
@@ -585,7 +635,7 @@ function updatePrompt() {
 	const idle = idleUnits();
 	if (counter) counter.textContent = idle.length ? `(${idle.length} idle)` : "";
 	note.textContent = idle.length ? `${idle.length} unit(s) have no orders.` : "Every unit has orders.";
-	send.textContent = idle.length ? "Submit anyway" : "Submit orders";
+	send.textContent = idle.length ? "Go to next unit" : "Submit orders";
 }
 
 function focusIdle() {
@@ -599,12 +649,13 @@ function focusIdle() {
 	clampCamera();
 	syncLayerButtons();
 	state.selected = { kind: "unit", unitId: idle[0].unit_id, ref: tile.ref };
-	say(`${idle[0].name} still has no orders. Click a highlighted tile, or press Submit again to send anyway.`);
+	say(`${idle[0].name} has no orders. Give it one, or use Hold position to leave it where it is.`);
 	draw();
 	return true;
 }
 
 function openBuild(tile) {
+	if (window.GAME.submitted) { say("Orders are locked in for this turn."); return; }
 	const site = window.GAME.sites[tile.ref];
 	if (!site) { say("That tile cannot produce anything."); return; }
 
@@ -619,7 +670,7 @@ function openBuild(tile) {
 		button.type = "button";
 		button.className = option.blocked ? "quiet small" : "small";
 		button.disabled = Boolean(option.blocked);
-		button.textContent = `${option.label} (${option.cost})${option.blocked ? " - " + option.blocked : ""}`;
+		button.textContent = `${option.label} (${option.cost})${option.away ? " - onto next tile" : ""}${option.blocked ? " - " + option.blocked : ""}`;
 		button.style.marginRight = "0.4rem";
 		button.style.marginBottom = "0.4rem";
 		button.addEventListener("click", () => {
@@ -640,7 +691,11 @@ function openBuild(tile) {
 }
 
 function clickTile(tile) {
-	if (!tile || tile.state === "hidden") { state.selected = null; say("Nothing known there yet."); draw(); return; }
+	if (window.GAME.submitted) {
+		say(tile && tile.state !== "hidden" ? describeTile(tile) : "Orders are locked in for this turn.");
+		return;
+	}
+	if (!tile || tile.state === "hidden") { state.selected = null; renderUnitActions(); say("Nothing known there yet."); draw(); return; }
 
 	if (state.selected && state.selected.kind === "unit") {
 		const move = legalFor(state.selected.unitId).find(option => option.ref === tile.ref);
@@ -681,7 +736,8 @@ function clickTile(tile) {
 	}
 
 	state.selected = null;
-	say(tile.owner ? `${tile.terrain}, held by ${tile.owner}.` : `${tile.terrain}, unclaimed.`);
+	renderUnitActions();
+	say(describeTile(tile));
 	draw();
 }
 
@@ -693,6 +749,7 @@ function syncLayerButtons() {
 
 function submitOrders() {
 	const payload = {
+		holds: [...state.holds].map(Number),
 		moves: [...state.orders.entries()].map(([unitId, order]) => ({ unit_id: Number(unitId), ref: order.ref })),
 		builds: [...state.builds.entries()].map(([ref, build]) => ({ ref: Number(ref), token: build.token }))
 	};
@@ -701,8 +758,12 @@ function submitOrders() {
 		.then(response => response.json())
 		.then(data => {
 			if (data.ok) {
+				window.GAME.submitted = true;
 				document.getElementById("send").disabled = true;
 				document.getElementById("send").textContent = "Orders locked in";
+				state.selected = null;
+				renderUnitActions();
+				draw();
 				say("Orders locked in. Waiting for the others.");
 			} else {
 				say((data.problems || ["Something went wrong."]).join(" "));
@@ -756,10 +817,7 @@ if (canvas) {
 	const send = document.getElementById("send");
 	if (send) {
 		send.addEventListener("click", () => {
-			if (!state.nagged && focusIdle()) {
-				state.nagged = true;
-				return;
-			}
+			if (focusIdle()) return;
 			submitOrders();
 		});
 	}
@@ -844,6 +902,13 @@ document.querySelectorAll(".keyicon").forEach(node => {
 	drawTerrain(box, 0, 0, size, "plains", 0, false);
 	if (icon === "crossing") drawCrossing(box, 0, 0, size, false);
 	if (icon === "city") drawCity(box, 0, 0, size, null);
+	if (icon === "capital") {
+		drawCity(box, 0, 0, size, null);
+		box.strokeStyle = INK;
+		box.lineWidth = 2;
+		box.strokeRect(3, 3, size - 6, size - 6);
+	}
 	if (icon === "barracks") drawImprovement(box, 0, 0, size, "barracks");
+	if (icon === "gateway") drawImprovement(box, 0, 0, size, "gateway");
 	if (icon === "iron" || icon === "horses") drawResource(box, 0, 0, size, icon);
 });

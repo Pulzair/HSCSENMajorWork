@@ -179,7 +179,7 @@ def generate_config(name, size, seed, players=6):
 				under += "I" if rng.random() < 0.08 else ("M" if rng.random() < 0.26 else ("R" if rng.random() < 0.10 else "P"))
 			else:
 				under += "."
-			sky += ("M" if rng.random() < 0.18 else "P") if islands.get((x, y)) else "."
+			sky += "M" if rng.random() < 0.14 else "P"
 		land_rows.append(land)
 		under_rows.append(under)
 		sky_rows.append(sky)
@@ -322,14 +322,20 @@ def within_range(start_ref, reach, by_ref, adjacency):
 	return seen
 
 
-def transition_refs(layout):
+def transition_refs(layout, extra=()):
 	refs = set()
 	for x, y in layout["config"].get("transitions", []):
 		for layer in LAYERS:
 			ref = layout["grid"][layer].get((x, y))
 			if ref is not None:
 				refs.add(ref)
+	refs.update(extra)
 	return refs
+
+
+def gateway_refs(db, game_id):
+	rows = db.execute("SELECT map_territory_ref FROM Territory WHERE game_id = ? AND improvement IN (SELECT 'gateway')", (game_id,)).fetchall()
+	return {row["map_territory_ref"] for row in rows}
 
 
 def get_layout(map_row, game=None):
@@ -361,18 +367,37 @@ def seed_territories(db, game_id, layout):
 	config = layout["config"]
 	players = db.execute("SELECT user_id FROM GamePlayer WHERE game_id = ? ORDER BY gameplayer_id", (game_id,)).fetchall()
 
+	adjacency = build_adjacency(layout)
+	seeded = set()
+
 	for player, (x, y) in zip(players, config.get("spawns", [])):
 		ref = layout["grid"]["land"].get((x, y))
 		if ref is None:
 			continue
-		db.execute("UPDATE Territory SET owner_id = ?, has_city = 1 WHERE game_id = ? AND map_territory_ref = ?", (player["user_id"], game_id, ref))
+		db.execute("UPDATE Territory SET owner_id = ?, has_city = 1, is_capital = 1, capital_of = ? WHERE game_id = ? AND map_territory_ref = ?", (player["user_id"], player["user_id"], game_id, ref))
 		spawn = db.execute("SELECT territory_id, layer FROM Territory WHERE game_id = ? AND map_territory_ref = ?", (game_id, ref)).fetchone()
 
 		for kind in config.get("starting_units", []):
 			spec = get_unit(kind)
 			if spec is None:
 				continue
-			db.execute("INSERT INTO Unit (game_id, owner_id, territory_id, unit_type, attack, defence, health, layer) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (game_id, player["user_id"], spawn["territory_id"], kind, spec["attack"], spec["defence"], spec["health"], spawn["layer"]))
+			home = None
+			for neighbour in adjacency.get(ref, ()):
+				if neighbour in seeded:
+					continue
+				tile = layout["territories"].get(neighbour)
+				if tile is None or tile["layer"] != spawn["layer"]:
+					continue
+				if not can_occupy(kind, tile["layer"], tile["terrain"]):
+					continue
+				home = neighbour
+				break
+			if home is None:
+				continue
+			seeded.add(home)
+			db.execute("UPDATE Territory SET owner_id = ? WHERE game_id = ? AND map_territory_ref = ?", (player["user_id"], game_id, home))
+			landing = db.execute("SELECT territory_id, layer FROM Territory WHERE game_id = ? AND map_territory_ref = ?", (game_id, home)).fetchone()
+			db.execute("INSERT INTO Unit (game_id, owner_id, territory_id, unit_type, attack, defence, health, layer) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (game_id, player["user_id"], landing["territory_id"], kind, spec["attack"], spec["defence"], spec["health"], landing["layer"]))
 
 		db.execute("UPDATE GamePlayer SET resources = ? WHERE game_id = ? AND user_id = ?", (config.get("starting_resources", 0), game_id, player["user_id"]))
 
@@ -435,7 +460,7 @@ def fog_state(ref, visible, explored):
 
 def build_board(db, game, map_row, viewer_id):
 	layout = get_layout(map_row, game)
-	rows = db.execute("SELECT t.territory_id, t.map_territory_ref, t.terrain_type, t.resource_value, t.has_city, t.fog_modifier, t.improvement, t.natural_resource, t.owner_id, gp.player_colour, u.username AS owner_name FROM Territory t LEFT JOIN GamePlayer gp ON gp.game_id = t.game_id AND gp.user_id = t.owner_id LEFT JOIN User u ON u.user_id = t.owner_id WHERE t.game_id = ?", (game["game_id"],)).fetchall()
+	rows = db.execute("SELECT t.territory_id, t.map_territory_ref, t.terrain_type, t.resource_value, t.has_city, t.is_capital, t.fog_modifier, t.improvement, t.natural_resource, t.owner_id, gp.player_colour, u.username AS owner_name FROM Territory t LEFT JOIN GamePlayer gp ON gp.game_id = t.game_id AND gp.user_id = t.owner_id LEFT JOIN User u ON u.user_id = t.owner_id WHERE t.game_id = ?", (game["game_id"],)).fetchall()
 	state = {row["map_territory_ref"]: row for row in rows}
 
 	adjacency = build_adjacency(layout)
@@ -474,6 +499,7 @@ def build_board(db, game, map_row, viewer_id):
 					"terrain": current["terrain_type"] if current else base["terrain"],
 					"resources": current["resource_value"] if current else base["resources"],
 					"city": bool(current["has_city"]) if current else False,
+					"capital": bool(current["is_capital"]) if current else False,
 					"improvement": improvement["name"] if improvement else None,
 					"improvement_key": current["improvement"] if current and current["improvement"] else None,
 					"crossing": ref in crossings,

@@ -79,7 +79,7 @@ def legal_moves(db, game, user_id, layout, adjacency, visible):
 	for row in db.execute("SELECT t.map_territory_ref, u.owner_id FROM Unit u JOIN Territory t ON t.territory_id = u.territory_id WHERE u.game_id = ?", (game["game_id"],)):
 		occupants.setdefault(row["map_territory_ref"], []).append(row["owner_id"])
 
-	crossings = world.transition_refs(layout)
+	crossings = world.transition_refs(layout, world.gateway_refs(db, game["game_id"]))
 	moves = {}
 	for unit in db.execute("SELECT u.unit_id, u.unit_type, u.layer, u.health, t.map_territory_ref FROM Unit u JOIN Territory t ON t.territory_id = u.territory_id WHERE u.game_id = ? AND u.owner_id = ? ORDER BY u.unit_id", (game["game_id"], user_id)).fetchall():
 		spec = world.get_unit(unit["unit_type"])
@@ -131,34 +131,43 @@ def legal_moves(db, game, user_id, layout, adjacency, visible):
 	return moves
 
 
-def production_menu(db, game, user_id):
+def production_menu(db, game, user_id, adjacency=None, by_ref=None):
 	budget = db.execute("SELECT resources FROM GamePlayer WHERE game_id = ? AND user_id = ?", (game["game_id"], user_id)).fetchone()
 	budget = budget["resources"] if budget else 0
 	stock = held_resources(db, game["game_id"], user_id)
+	filled = {row["map_territory_ref"] for row in db.execute("SELECT t.map_territory_ref FROM Unit u JOIN Territory t ON t.territory_id = u.territory_id WHERE u.game_id = ?", (game["game_id"],))}
 
 	sites = {}
 	for tile in db.execute("SELECT territory_id, map_territory_ref, layer, terrain_type, has_city, improvement FROM Territory WHERE game_id = ? AND owner_id = ? AND terrain_type <> 'destroyed'", (game["game_id"], user_id)).fetchall():
 		entries = []
-		if tile["has_city"] or world.allows_production(tile["improvement"]):
-			for key in world.buildable_in(tile["layer"]):
+		produces = tile["has_city"] or world.allows_production(tile["improvement"])
+
+		if produces:
+			spots = [tile["map_territory_ref"]] + [ref for ref in adjacency.get(tile["map_territory_ref"], ()) if by_ref and ref in by_ref]
+			for key in world.load_roster():
 				spec = world.get_unit(key)
-				if not world.can_occupy(key, tile["layer"], tile["terrain_type"]):
+				landing = next((ref for ref in spots if ref not in filled and by_ref and world.can_occupy(key, by_ref[ref]["layer"], by_ref[ref]["terrain_type"])), None)
+				if landing is None:
 					continue
 				needs = spec.get("requires")
-				entries.append({"token": f"unit:{key}", "label": spec["name"], "cost": spec["cost"], "blocked": ("needs " + needs) if needs and needs not in stock else ("too dear" if spec["cost"] > budget else None)})
+				blocked = None
+				if needs and needs not in stock:
+					blocked = "needs " + needs
+				elif spec["cost"] > budget:
+					blocked = "too dear"
+				entries.append({"token": f"unit:{key}", "label": spec["name"], "cost": spec["cost"], "blocked": blocked, "landing": landing, "away": landing != tile["map_territory_ref"]})
 
 		if tile["improvement"] is None and not tile["has_city"]:
 			for key in world.improvement_options(tile["layer"], tile["terrain_type"]):
 				spec = world.get_improvement(key)
-				entries.append({"token": f"improvement:{key}", "label": spec["name"], "cost": spec["cost"], "blocked": "too dear" if spec["cost"] > budget else None})
+				entries.append({"token": f"improvement:{key}", "label": spec["name"], "cost": spec["cost"], "blocked": "too dear" if spec["cost"] > budget else None, "landing": tile["map_territory_ref"], "away": False})
 
 		locked = []
-		if tile["has_city"] or world.allows_production(tile["improvement"]):
+		if produces:
+			offered = {entry["token"].split(":")[1] for entry in entries if entry["token"].startswith("unit")}
 			for layer in world.LAYERS:
-				if layer == tile["layer"]:
-					continue
-				names = [world.get_unit(key)["name"] for key in world.buildable_in(layer) if key not in [entry["token"].split(":")[1] for entry in entries]]
-				if names:
+				names = [world.get_unit(key)["name"] for key in world.buildable_in(layer) if key not in offered]
+				if names and layer != tile["layer"]:
 					locked.append({"layer": layer, "names": names})
 
 		if entries:
@@ -351,7 +360,7 @@ def game(code):
 	layout = world.get_layout(map_row, row)
 	adjacency = world.build_adjacency(layout)
 	board = world.build_board(db, row, map_row, g.user["user_id"])
-	sites, budget = production_menu(db, row, g.user["user_id"])
+	sites, budget = production_menu(db, row, g.user["user_id"], adjacency, {r["map_territory_ref"]: r for r in db.execute("SELECT map_territory_ref, layer, terrain_type FROM Territory WHERE game_id = ?", (row["game_id"],))})
 
 	return render_template(
 		"game.html",
@@ -398,11 +407,14 @@ def submit_orders(code):
 	adjacency = world.build_adjacency(layout)
 	board = world.build_board(db, row, map_row, g.user["user_id"])
 	moves = legal_moves(db, row, g.user["user_id"], layout, adjacency, board["visible"])
-	sites, budget = production_menu(db, row, g.user["user_id"])
+	sites, budget = production_menu(db, row, g.user["user_id"], adjacency, {r["map_territory_ref"]: r for r in db.execute("SELECT map_territory_ref, layer, terrain_type FROM Territory WHERE game_id = ?", (row["game_id"],))})
 
 	problems, accepted, builds, spend = [], [], [], 0
+	held = {entry for entry in payload.get("holds", []) if entry in moves}
 	for entry in payload.get("moves", []):
 		unit_id, ref = entry.get("unit_id"), entry.get("ref")
+		if unit_id in held:
+			continue
 		option = moves.get(unit_id)
 		if option is None:
 			problems.append("You tried to order a unit that is not yours.")
@@ -424,7 +436,7 @@ def submit_orders(code):
 			problems.append("That cannot be produced there right now.")
 			continue
 		spend += option["cost"]
-		builds.append((site["tid"], token))
+		builds.append((site["tid"], token, option.get("landing")))
 
 	if spend > budget:
 		problems.append(f"That costs {spend} but you only have {budget}.")
@@ -438,8 +450,8 @@ def submit_orders(code):
 	for kind, unit_id, ref in accepted:
 		source = db.execute("SELECT territory_id FROM Unit WHERE unit_id = ?", (unit_id,)).fetchone()
 		db.execute("INSERT INTO Orders (game_id, player_id, turn_number, order_type, unit_id, source_territory, target_territory) VALUES (?, ?, ?, ?, ?, ?, ?)", (row["game_id"], g.user["user_id"], turn, kind, unit_id, source["territory_id"], ref_to_id[ref]))
-	for territory_id, token in builds:
-		db.execute("INSERT INTO Orders (game_id, player_id, turn_number, order_type, target_territory, detail) VALUES (?, ?, ?, 'build', ?, ?)", (row["game_id"], g.user["user_id"], turn, territory_id, token))
+	for territory_id, token, landing in builds:
+		db.execute("INSERT INTO Orders (game_id, player_id, turn_number, order_type, source_territory, target_territory, detail) VALUES (?, ?, ?, 'build', ?, ?, ?)", (row["game_id"], g.user["user_id"], turn, territory_id, ref_to_id.get(landing, territory_id), token))
 
 	db.execute("UPDATE GamePlayer SET submitted_turn = ? WHERE game_id = ? AND user_id = ?", (turn, row["game_id"], g.user["user_id"]))
 	db.commit()

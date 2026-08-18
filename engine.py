@@ -111,6 +111,10 @@ def strike_units(db, game, tile, spec):
 
 def scar_tile(db, tile, spec, rng):
 	fog = min(1.0, max(0.0, spec.get("fog_modifier", 1.0)))
+	if tile["has_city"]:
+		db.execute("UPDATE Territory SET resource_value = MAX(0, resource_value + ?), fog_modifier = ? WHERE territory_id = ?", (int(spec.get("resource_delta", 0)), fog, tile["territory_id"]))
+		return 0
+
 	if rng.random() < spec.get("destroy_chance", 0.0):
 		had = db.execute("SELECT improvement FROM Territory WHERE territory_id = ?", (tile["territory_id"],)).fetchone()
 		db.execute("UPDATE Territory SET terrain_type = 'destroyed', resource_value = 0, improvement = NULL, has_city = 0, owner_id = NULL, fog_modifier = ? WHERE territory_id = ?", (fog, tile["territory_id"]))
@@ -139,7 +143,7 @@ def roll_disaster(db, game, config, adjacency, log, rng=None):
 	if game["current_turn"] < setting(config, DISASTER_DEFAULTS, "disaster_first_turn") or rng.random() >= setting(config, DISASTER_DEFAULTS, "disaster_chance"):
 		return None
 
-	tiles = db.execute("SELECT territory_id, map_territory_ref, layer, terrain_type FROM Territory WHERE game_id = ? AND terrain_type <> 'destroyed'", (game["game_id"],)).fetchall()
+	tiles = db.execute("SELECT territory_id, map_territory_ref, layer, terrain_type, has_city FROM Territory WHERE game_id = ? AND terrain_type <> 'destroyed'", (game["game_id"],)).fetchall()
 	if not tiles:
 		return None
 
@@ -157,7 +161,7 @@ def roll_disaster(db, game, config, adjacency, log, rng=None):
 	hit = [by_ref[ref] for ref in hit_refs if ref in by_ref]
 
 	disaster_id = db.execute("INSERT INTO DisasterEvent (game_id, turn_number, disaster_type) VALUES (?, ?, ?)", (game["game_id"], game["current_turn"], key)).lastrowid
-	razed = sum(db.execute("UPDATE Territory SET has_city = 0 WHERE territory_id = ? AND has_city = 1", (tile["territory_id"],)).rowcount for tile in hit) if spec.get("razes_city") else 0
+	razed = sum(db.execute("UPDATE Territory SET has_city = 0 WHERE territory_id = ? AND has_city = 1 AND is_capital = 0", (tile["territory_id"],)).rowcount for tile in hit) if spec.get("razes_city") else 0
 
 	killed = wrecked = 0
 	for tile in hit:
@@ -420,7 +424,11 @@ def sweep_abandoned(db, force=False):
 
 def order_fault(order, adjacency, by_ref, crossings):
 	if order["order_type"] == "build":
-		return "the ground was destroyed" if order["source_terrain"] == "destroyed" else None
+		if order["source_terrain"] == "destroyed":
+			return "the ground was destroyed"
+		if order["target_ref"] is not None and order["source_ref"] is not None and order["target_ref"] != order["source_ref"] and order["target_ref"] not in adjacency.get(order["source_ref"], ()):
+			return "the build site was out of reach"
+		return None
 	if order["unit_id"] is None or order["owner_id"] != order["player_id"]:
 		return "the unit no longer exists"
 	if order["unit_at"] != order["source_territory"]:
@@ -492,8 +500,8 @@ def apply_builds(db, game, orders, log):
 		if order["order_type"] != "build":
 			continue
 		kind, _sep, key = (order["detail"] or "").partition(":")
-		tile = db.execute("SELECT territory_id, layer, owner_id, terrain_type, improvement, resource_value FROM Territory WHERE territory_id = ?", (order["target_territory"],)).fetchone()
-		if tile is None or tile["owner_id"] != order["player_id"]:
+		home = db.execute("SELECT territory_id, layer, owner_id, terrain_type, improvement FROM Territory WHERE territory_id = ?", (order["source_territory"],)).fetchone()
+		if home is None or home["owner_id"] != order["player_id"]:
 			log.append("A build order was invalidated: the tile was lost.")
 			continue
 
@@ -501,22 +509,28 @@ def apply_builds(db, game, orders, log):
 			spec = world.get_unit(key)
 			if spec is None:
 				continue
-			if occupant_of(db, game["game_id"], tile["territory_id"]) is not None:
+			landing = db.execute("SELECT territory_id, layer, terrain_type, owner_id FROM Territory WHERE territory_id = ?", (order["target_territory"] or order["source_territory"],)).fetchone()
+			if landing is None or not world.can_occupy(key, landing["layer"], landing["terrain_type"]):
+				log.append(f"A {spec['name']} was not built: nowhere to place it.")
+				continue
+			if occupant_of(db, game["game_id"], landing["territory_id"]) is not None:
 				log.append(f"A {spec['name']} was not built: the tile is occupied.")
 				continue
 			if not charge(db, game, order["player_id"], spec["cost"]):
 				log.append(f"A {spec['name']} was not built: not enough resources.")
 				continue
-			db.execute("INSERT INTO Unit (game_id, owner_id, territory_id, unit_type, attack, defence, health, layer) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (game["game_id"], order["player_id"], tile["territory_id"], key, spec["attack"], spec["defence"], spec["health"], tile["layer"]))
+			db.execute("INSERT INTO Unit (game_id, owner_id, territory_id, unit_type, attack, defence, health, layer) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (game["game_id"], order["player_id"], landing["territory_id"], key, spec["attack"], spec["defence"], spec["health"], landing["layer"]))
+			if landing["owner_id"] is None:
+				db.execute("UPDATE Territory SET owner_id = ? WHERE territory_id = ?", (order["player_id"], landing["territory_id"]))
 			log.append(f"A {spec['name']} was built.")
 		elif kind == "improvement":
 			spec = world.get_improvement(key)
-			if spec is None or tile["improvement"] is not None:
+			if spec is None or home["improvement"] is not None:
 				continue
 			if not charge(db, game, order["player_id"], spec["cost"]):
 				log.append(f"A {spec['name']} was not built: not enough resources.")
 				continue
-			db.execute("UPDATE Territory SET improvement = ?, resource_value = resource_value + ? WHERE territory_id = ?", (key, spec["resource_bonus"], tile["territory_id"]))
+			db.execute("UPDATE Territory SET improvement = ?, resource_value = resource_value + ? WHERE territory_id = ?", (key, spec["resource_bonus"], home["territory_id"]))
 			log.append(f"A {spec['name']} was completed.")
 
 
@@ -565,7 +579,7 @@ def melee(db, game, order, log):
 
 	if defender_died and not attacker_died:
 		db.execute("UPDATE Unit SET territory_id = ?, layer = (SELECT layer FROM Territory WHERE territory_id = ?) WHERE unit_id = ?", (order["target_territory"], order["target_territory"], attacker["unit_id"]))
-		db.execute("UPDATE Territory SET owner_id = ? WHERE territory_id = ?", (attacker["owner_id"], order["target_territory"]))
+		seize(db, game, order["target_territory"], attacker["owner_id"], log)
 		log.append(f"{attacker_spec['name']} killed a {defender_spec['name']} and took the ground.")
 	elif defender_died and attacker_died:
 		log.append(f"{attacker_spec['name']} and {defender_spec['name']} destroyed each other.")
@@ -573,6 +587,20 @@ def melee(db, game, order, log):
 		log.append(f"{attacker_spec['name']} broke against a {defender_spec['name']} and was lost.")
 	else:
 		log.append(f"{attacker_spec['name']} traded blows with a {defender_spec['name']} and held position.")
+
+
+def seize(db, game, territory_id, new_owner, log):
+	tile = db.execute("SELECT owner_id, has_city, is_capital FROM Territory WHERE territory_id = ?", (territory_id,)).fetchone()
+	if tile is None or tile["owner_id"] == new_owner:
+		return
+	db.execute("UPDATE Territory SET owner_id = ? WHERE territory_id = ?", (new_owner, territory_id))
+	if tile["owner_id"] is None:
+		return
+	names = usernames(db, [new_owner, tile["owner_id"]])
+	if tile["is_capital"]:
+		log.append(f"{names[new_owner]} has taken {names[tile['owner_id']]}'s home city.")
+	elif tile["has_city"]:
+		log.append(f"{names[new_owner]} captured a city from {names[tile['owner_id']]}.")
 
 
 def resolve_orders(db, game, orders, adjacency, ref_of, log):
@@ -604,6 +632,7 @@ def resolve_orders(db, game, orders, adjacency, ref_of, log):
 		target = db.execute("SELECT territory_id, layer FROM Territory WHERE territory_id = ?", (order["target_territory"],)).fetchone()
 		if target is not None:
 			db.execute("UPDATE Unit SET territory_id = ?, layer = ? WHERE unit_id = ?", (target["territory_id"], target["layer"], order["unit_id"]))
+			seize(db, game, order["target_territory"], order["player_id"], log)
 
 
 def claim_empty(db, game):
@@ -626,13 +655,24 @@ def pay_income(db, game, log):
 		log.append("The world's resources are exhausted. Income has stopped.")
 
 
+def knock_out(db, game, user_id, reason, log):
+	db.execute("UPDATE GamePlayer SET is_eliminated = 1, submitted_turn = NULL WHERE game_id = ? AND user_id = ?", (game["game_id"], user_id))
+	db.execute("DELETE FROM Unit WHERE game_id = ? AND owner_id = ?", (game["game_id"], user_id))
+	db.execute("UPDATE Territory SET owner_id = NULL WHERE game_id = ? AND owner_id = ? AND is_capital = 0", (game["game_id"], user_id))
+	log.append(f"{usernames(db, [user_id])[user_id]} {reason}")
+
+
 def check_elimination(db, game, log):
 	for player in db.execute("SELECT user_id FROM GamePlayer WHERE game_id = ? AND is_eliminated = 0", (game["game_id"],)).fetchall():
+		capital = db.execute("SELECT owner_id FROM Territory WHERE game_id = ? AND capital_of = ?", (game["game_id"], player["user_id"])).fetchone()
+		if capital is not None and capital["owner_id"] != player["user_id"]:
+			knock_out(db, game, player["user_id"], "has lost their home city and is out of the game.", log)
+			continue
+
 		held = db.execute("SELECT COUNT(*) c FROM Territory WHERE game_id = ? AND owner_id = ?", (game["game_id"], player["user_id"])).fetchone()["c"]
 		alive = db.execute("SELECT COUNT(*) c FROM Unit WHERE game_id = ? AND owner_id = ?", (game["game_id"], player["user_id"])).fetchone()["c"]
 		if held == 0 and alive == 0:
-			db.execute("UPDATE GamePlayer SET is_eliminated = 1 WHERE game_id = ? AND user_id = ?", (game["game_id"], player["user_id"]))
-			log.append("A player has been eliminated.")
+			knock_out(db, game, player["user_id"], "has been eliminated.", log)
 
 
 def check_victory(db, game, victory_share, log):
@@ -665,7 +705,7 @@ def resolve_turn(db, game, map_row):
 	adjacency = world.build_adjacency(layout)
 
 	by_ref = {row["map_territory_ref"]: dict(row) for row in db.execute("SELECT map_territory_ref, layer, terrain_type FROM Territory WHERE game_id = ?", (game["game_id"],))}
-	crossings = world.transition_refs(layout)
+	crossings = world.transition_refs(layout, world.gateway_refs(db, game["game_id"]))
 
 	roll_disaster(db, game, config, adjacency, log)
 	valid = validate(db, game, log, adjacency, by_ref, crossings)
