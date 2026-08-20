@@ -789,7 +789,7 @@ function submitOrders() {
 		builds: [...state.builds.entries()].map(([ref, build]) => ({ ref: Number(ref), token: build.token }))
 	};
 
-	fetch(window.GAME.ordersUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+	return fetch(window.GAME.ordersUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
 		.then(response => response.json())
 		.then(data => {
 			if (data.ok) {
@@ -803,8 +803,12 @@ function submitOrders() {
 			} else {
 				say((data.problems || ["Something went wrong."]).join(" "));
 			}
+			return data;
 		})
-		.catch(() => say("Could not reach the server."));
+		.catch(() => {
+			say("Could not reach the server.");
+			return { ok: false };
+		});
 }
 
 if (canvas) {
@@ -880,6 +884,7 @@ const clock = document.getElementById("clock");
 if (clock) {
 	let left = parseInt(clock.dataset.seconds, 10);
 	let fired = false;
+	let chaser = null;
 
 	const paint = () => {
 		const safe = Math.max(0, left);
@@ -887,15 +892,27 @@ if (clock) {
 		clock.classList.toggle("urgent", safe <= 10);
 	};
 
+	// ask the server to roll the turn over now the deadline has gone
+	const forceResolve = () => fetch(clock.dataset.resolve, { method: "POST" }).catch(() => {});
+
+	// submitting your own orders is not enough, someone still has to trigger the resolve or
+	// the turn just sits there when the other players never submit
 	const expire = () => {
 		if (fired) return;
 		fired = true;
-		if (!window.GAME.submitted && document.getElementById("send") && !document.getElementById("send").disabled) {
+		clock.textContent = "0:00";
+		const send = document.getElementById("send");
+
+		if (!window.GAME.submitted && send && !send.disabled) {
 			state.nagged = true;
-			submitOrders();
+			submitOrders().then(forceResolve);
 		} else {
-			fetch(clock.dataset.resolve, { method: "POST" }).catch(() => {});
+			forceResolve();
 		}
+
+		// keep nudging in case whoever else is left has their tab shut, the socket reload
+		// kills this page as soon as the turn actually rolls
+		chaser = setInterval(forceResolve, 5000);
 	};
 
 	paint();

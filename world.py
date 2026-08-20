@@ -320,7 +320,7 @@ def reachable(start_ref, budget, kind, by_ref, adjacency):
 			if cost >= 99:
 				continue
 			total = best[ref] + cost
-			if ref == start_ref and total > budget:
+			if ref == start_ref and total > budget and budget >= 1:
 				total = budget
 			if total <= budget and total < best.get(neighbour, 999):
 				best[neighbour] = total
