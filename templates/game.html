@@ -1,9 +1,11 @@
+{# the actual game, map plus sidebar plus the popups #}
 {% extends "base.html" %}
 {% set wide = true %}
 
 {% block title %}Turn {{ game['current_turn'] }} - Battley{% endblock %}
 
 {% block content %}
+{# resources turn and timer across the top #}
 <div class="topbar">
 	<span class="topbar__item"><strong>{{ budget }}</strong> resources</span>
 	<span class="topbar__item"><strong>{{ game['global_resources'] }}</strong> world pool</span>
@@ -28,7 +30,9 @@
 			<span class="spacer"></span>
 			<output id="hint">Click one of your units or cities.</output>
 		</div>
+		{# the map itself, everything drawn by app.js #}
 		<canvas id="viewport" width="960" height="600" aria-label="Game map"></canvas>
+		{# arrows for moving around a board bigger than the screen #}
 		<div class="pad" role="group" aria-label="Pan the map">
 			<button type="button" class="up" data-pan="up" aria-label="Pan up">&uarr;</button>
 			<button type="button" class="left" data-pan="left" aria-label="Pan left">&larr;</button>
@@ -40,6 +44,7 @@
 
 	<aside class="side">
 		<section>
+			{# shows stats and the change layer button when a unit is picked #}
 			<h3>Selected unit</h3>
 			<div id="unitActions" class="unit-actions"><small>No unit selected.</small></div>
 		</section>
@@ -100,11 +105,13 @@
 	</aside>
 </section>
 
+{# nags you about idle units before it lets you submit #}
 <div class="submitbar">
 	<output id="submitNote"></output>
 	<button type="button" id="send" {% if submitted %}disabled{% endif %}>{{ 'Orders locked in' if submitted else 'Submit orders' }}</button>
 </div>
 
+{# diplomacy popup #}
 <div class="sheet" id="pactSheet" hidden>
 	<article class="sheet__panel stack">
 		<h2>Diplomacy <button type="button" class="quiet small" id="closePacts">Close</button></h2>
@@ -168,6 +175,7 @@
 	</article>
 </div>
 
+{# production popup, filled in by app.js #}
 <div class="sheet" id="buildSheet" hidden>
 	<article class="sheet__panel stack">
 		<h2>Production <button type="button" class="quiet small" id="closeBuild">Close</button></h2>
@@ -178,6 +186,7 @@
 
 {% block scripts %}
 <script>
+		{# everything the browser needs, already fogged by the server #}
 	window.GAME = {
 		code: {{ game['join_code']|tojson }},
 		gameId: {{ game['game_id'] }},

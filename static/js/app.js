@@ -1,23 +1,28 @@
+// how many tiles fit on screen before the map starts panning
 const MAX_VIEW = 25;
 const MAX_PIXELS = 780;
 const INK = "#111111";
 const PAPER = "#ffffff";
 const ACCENT = "#111111";
 
+// tone per terrain, higher is lighter
 const TERRAIN = { plains: 0.93, mountain: 0.74, water: 0.55, destroyed: 0.34 };
 
 let CELL = 30;
 
+// one number to a grey, whole map is black and white apart from player colours
 function grey(level) {
 	const value = Math.max(0, Math.min(255, Math.round(level * 255)));
 	return `rgb(${value},${value},${value})`;
 }
 
+// fake random from the coordinates, same tile always gets the same speckle
 function hashAt(x, y, salt) {
 	const value = Math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453;
 	return value - Math.floor(value);
 }
 
+// each terrain gets a tone and a pattern so it reads without colour
 function drawTerrain(ctx, px, py, size, terrain, layer, dim) {
 	const base = TERRAIN[terrain] === undefined ? TERRAIN.plains : TERRAIN[terrain];
 	const shift = layer === 1 ? -0.10 : (layer === 2 ? 0.05 : 0);
@@ -63,6 +68,7 @@ function drawTerrain(ctx, px, py, size, terrain, layer, dim) {
 	}
 }
 
+// little walled block, filled with the owners colour
 function drawCity(ctx, px, py, size, colour) {
 	const unit = size / 8;
 	ctx.fillStyle = INK;
@@ -73,6 +79,7 @@ function drawCity(ctx, px, py, size, colour) {
 	ctx.fillRect(px + unit * 3, py + unit * 5, unit, unit * 2);
 }
 
+// improvement icons, drawn instead of image loaded
 const IMPROVEMENTS = {
 	farm(ctx, u, x, y) {
 		for (let row = 0; row < 3; row++) ctx.fillRect(x, y + row * u * 0.7, u * 2.6, u * 0.35);
@@ -99,6 +106,7 @@ const IMPROVEMENTS = {
 	}
 };
 
+// farm mine quarry barracks all get their own shape
 function drawImprovement(ctx, px, py, size, key) {
 	const u = size / 8;
 	ctx.fillStyle = INK;
@@ -107,6 +115,7 @@ function drawImprovement(ctx, px, py, size, key) {
 	else ctx.fillRect(px + u * 0.5, py + size - u * 2.0, u * 2.4, u * 1.2);
 }
 
+// iron is a diamond, horses is a horse-ish blob
 function drawResource(ctx, px, py, size, kind) {
 	const u = size / 8;
 	const x = px + size - u * 2.4;
@@ -131,6 +140,7 @@ function drawResource(ctx, px, py, size, kind) {
 	ctx.strokeRect(x - 0.6, y - 0.6, u * 2.1, u * 2.2);
 }
 
+// the ring, stand on one of these to change layer
 function drawCrossing(ctx, px, py, size, flag) {
 	const u = size / 8;
 	ctx.save();
@@ -152,6 +162,7 @@ function drawCrossing(ctx, px, py, size, flag) {
 	ctx.restore();
 }
 
+// every unit drawn from rectangles and triangles, shape has to carry it since theres no colour
 const SPRITES = {
 	warrior(ctx, u, cx, base) {
 		ctx.fillRect(cx - u * 1.1, base - u * 2.6, u * 2.2, u * 2.6);
@@ -281,6 +292,7 @@ const SPRITES = {
 	}
 };
 
+// look up the sprite for the type then draw the health bar over it
 function drawUnit(ctx, px, py, size, kind, colour, hurt) {
 	const u = size / 8;
 	const cx = px + size / 2;
@@ -304,6 +316,7 @@ function drawUnit(ctx, px, py, size, kind, colour, hurt) {
 	ctx.strokeRect(px + u, py + size - u * 1.3, size - u * 2, u * 0.8);
 }
 
+// everything the page is currently doing, orders live here until you submit
 const state = {
 	layer: 0,
 	camera: { x: 0, y: 0 },
@@ -318,26 +331,32 @@ const canvas = document.getElementById("viewport");
 const ctx = canvas ? canvas.getContext("2d") : null;
 const hint = document.getElementById("hint");
 
+// only the tiles on the layer being looked at
 function tilesOnLayer() {
 	return window.GAME.tiles.filter(tile => tile.layer === state.layer);
 }
 
+// tile at a grid position
 function tileAt(x, y) {
 	return tilesOnLayer().find(tile => tile.x === x && tile.y === y) || null;
 }
 
+// tile by its map reference, works across layers
 function tileByRef(ref) {
 	return window.GAME.tiles.find(tile => tile.ref === ref) || null;
 }
 
+// how many tiles wide the view is
 function columns() {
 	return Math.min(window.GAME.width, MAX_VIEW);
 }
 
+// how many tiles tall the view is
 function rows() {
 	return Math.min(window.GAME.height, MAX_VIEW);
 }
 
+// size the canvas so the whole board fits, 25x25 max before it pans
 function fitViewport() {
 	const span = Math.max(columns(), rows());
 	CELL = Math.max(12, Math.min(48, Math.floor(MAX_PIXELS / span)));
@@ -346,11 +365,13 @@ function fitViewport() {
 	canvas.style.maxWidth = canvas.width + "px";
 }
 
+// stop the camera going off the edge of the world
 function clampCamera() {
 	state.camera.x = Math.max(0, Math.min(state.camera.x, Math.max(0, window.GAME.width - columns())));
 	state.camera.y = Math.max(0, Math.min(state.camera.y, Math.max(0, window.GAME.height - rows())));
 }
 
+// jump to your own land when the page loads
 function centreOnHome() {
 	const mine = window.GAME.tiles.find(tile => tile.layer === state.layer && tile.mine) || window.GAME.tiles.find(tile => tile.mine);
 	if (mine) {
@@ -362,11 +383,13 @@ function centreOnHome() {
 	syncLayerButtons();
 }
 
+// the move list the server sent for one unit
 function legalFor(unitId) {
 	const entry = window.GAME.moves[unitId];
 	return entry ? entry.moves : [];
 }
 
+// redraw everything, terrain then buildings then units then highlights
 function draw() {
 	if (!ctx) return;
 	ctx.fillStyle = PAPER;
@@ -473,6 +496,7 @@ function draw() {
 	}
 }
 
+// the text in the top bar when you click a tile
 function describeTile(tile) {
 	let text = tile.terrain;
 	if (tile.resource) text += ` (${tile.resource})`;
@@ -483,14 +507,17 @@ function describeTile(tile) {
 	return `${text}. Yields ${tile.resources} per turn.`;
 }
 
+// put a message in the hint box
 function say(message) {
 	if (hint) hint.textContent = message;
 }
 
+// land underground or sky
 function layerName(index) {
 	return window.GAME.layers[index] || "another layer";
 }
 
+// the selected unit panel, layer buttons show up here
 function renderUnitActions() {
 	const holder = document.getElementById("unitActions");
 	if (!holder) return;
@@ -532,7 +559,7 @@ function renderUnitActions() {
 		});
 	} else if (entry.can_transition) {
 		const note = document.createElement("p");
-		note.innerHTML = entry.on_crossing ? "<small>On a crossing, but the far side is blocked.</small>" : "<small>Can change layer, but must first stand on a ringed crossing tile.</small>";
+		note.innerHTML = entry.on_crossing ? "<small>Other side of crossing blocked.</small>" : "<small>Can change layer, but must stand on crossing tile.</small>";
 		holder.appendChild(note);
 	}
 
@@ -570,6 +597,7 @@ function renderUnitActions() {
 	holder.appendChild(jump);
 }
 
+// list what you have ordered so far
 function renderOrders() {
 	const list = document.getElementById("orderList");
 	if (!list) return;
@@ -622,10 +650,12 @@ function renderOrders() {
 	updatePrompt();
 }
 
+// units with no order and no hold, these block the submit button
 function idleUnits() {
 	return Object.values(window.GAME.moves).filter(entry => !state.orders.has(entry.unit_id) && !state.holds.has(entry.unit_id) && entry.moves.length);
 }
 
+// change the submit button depending on whether anything is idle
 function updatePrompt() {
 	const note = document.getElementById("submitNote");
 	const counter = document.getElementById("idleCount");
@@ -638,6 +668,7 @@ function updatePrompt() {
 	send.textContent = idle.length ? "Go to next unit" : "Submit orders";
 }
 
+// jump to the next unit that has nothing to do
 function focusIdle() {
 	const idle = idleUnits();
 	if (!idle.length) return false;
@@ -649,11 +680,12 @@ function focusIdle() {
 	clampCamera();
 	syncLayerButtons();
 	state.selected = { kind: "unit", unitId: idle[0].unit_id, ref: tile.ref };
-	say(`${idle[0].name} has no orders. Give it one, or use Hold position to leave it where it is.`);
+	say(`${idle[0].name} has no orders.`);
 	draw();
 	return true;
 }
 
+// production panel for a city or barracks
 function openBuild(tile) {
 	if (window.GAME.submitted) { say("Orders are locked in for this turn."); return; }
 	const site = window.GAME.sites[tile.ref];
@@ -690,6 +722,7 @@ function openBuild(tile) {
 	document.getElementById("buildSheet").hidden = false;
 }
 
+// the main one, either finishes an order or selects something
 function clickTile(tile) {
 	if (window.GAME.submitted) {
 		say(tile && tile.state !== "hidden" ? describeTile(tile) : "Orders are locked in for this turn.");
@@ -741,12 +774,14 @@ function clickTile(tile) {
 	draw();
 }
 
+// highlight whichever layer tab is active
 function syncLayerButtons() {
 	document.querySelectorAll("[data-layer]").forEach(button => {
 		button.setAttribute("aria-pressed", Number(button.dataset.layer) === state.layer ? "true" : "false");
 	});
 }
 
+// send everything to the server as json
 function submitOrders() {
 	const payload = {
 		holds: [...state.holds].map(Number),
@@ -840,6 +875,7 @@ document.querySelectorAll(".sheet").forEach(sheet => {
 	sheet.addEventListener("click", event => { if (event.target === sheet) sheet.hidden = true; });
 });
 
+// turn timer, submits for you when it hits zero
 const clock = document.getElementById("clock");
 if (clock) {
 	let left = parseInt(clock.dataset.seconds, 10);
@@ -871,6 +907,7 @@ if (clock) {
 	}, 1000);
 }
 
+// socket updates, just reload since the server does all the thinking
 if (typeof io !== "undefined" && window.GAME) {
 	const socket = io();
 	socket.on("connect", () => socket.emit("join_game", { game_id: window.GAME.gameId }));
@@ -881,6 +918,7 @@ if (typeof io !== "undefined" && window.GAME) {
 }
 
 
+// draw the map key icons with the same functions the map uses so they always match
 document.querySelectorAll(".keyicon").forEach(node => {
 	const box = node.getContext("2d");
 	const size = node.width;

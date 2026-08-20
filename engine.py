@@ -1,3 +1,4 @@
+# import libraries
 import json
 import random
 from datetime import datetime, timezone
@@ -22,6 +23,7 @@ MAX_PACT_TURNS = 20
 _disasters = None
 
 
+# read a tuning value off the map config, fall back to the default table
 def setting(config, table, key):
 	value = config.get(key)
 	if isinstance(value, (int, float)) and value >= 0:
@@ -29,6 +31,7 @@ def setting(config, table, key):
 	return table[key]
 
 
+# timer scales with the average units and land per player, small early big later
 def turn_seconds(db, game_id, config):
 	standing = db.execute("SELECT COUNT(*) c FROM GamePlayer WHERE game_id = ? AND is_eliminated = 0", (game_id,)).fetchone()["c"]
 	if not standing:
@@ -41,12 +44,14 @@ def turn_seconds(db, game_id, config):
 	return int(round(max(setting(config, TIMER_DEFAULTS, "turn_seconds_min"), min(setting(config, TIMER_DEFAULTS, "turn_seconds_max"), seconds))))
 
 
+# stamp the deadline on the game row
 def set_deadline(db, game_id, config):
 	seconds = turn_seconds(db, game_id, config)
 	db.execute("UPDATE Game SET turn_deadline = datetime('now', ?) WHERE game_id = ?", (f"+{seconds} seconds", game_id))
 	return seconds
 
 
+# how long is left, server works it out so a wrong clock doesnt matter
 def seconds_left(game):
 	if game["turn_deadline"] is None:
 		return None
@@ -54,6 +59,7 @@ def seconds_left(game):
 	return max(0, int((deadline - datetime.now(timezone.utc)).total_seconds()))
 
 
+# load the disaster types from data/disasters
 def load_disasters(force=False):
 	global _disasters
 	if _disasters is None or force:
@@ -65,6 +71,7 @@ def load_disasters(force=False):
 	return _disasters
 
 
+# weighted random pick, only ones that fit the layers on this map
 def pick_disaster(rng, layers_present):
 	pool = [(key, spec) for key, spec in load_disasters().items() if spec.get("weight", 0) > 0 and any(layer in layers_present for layer in spec.get("layers", []))]
 	if not pool:
@@ -77,6 +84,7 @@ def pick_disaster(rng, layers_present):
 	return pool[-1]
 
 
+# spread out from the centre tile by the radius
 def blast_zone(centre_ref, radius, adjacency, allowed):
 	seen, edge = {centre_ref}, [centre_ref]
 	for _step in range(max(0, int(radius))):
@@ -90,10 +98,12 @@ def blast_zone(centre_ref, radius, adjacency, allowed):
 	return seen
 
 
+# stops the log saying 1 units
 def plural(number, singular, many):
 	return f"{number} {singular if number == 1 else many}"
 
 
+# damage everything standing in the blast
 def strike_units(db, game, tile, spec):
 	damage = int(spec.get("unit_damage", 0))
 	if damage <= 0:
@@ -109,6 +119,7 @@ def strike_units(db, game, tile, spec):
 	return killed
 
 
+# terrain damage, cities are immune so a disaster cant hand someone a win
 def scar_tile(db, tile, spec, rng):
 	fog = min(1.0, max(0.0, spec.get("fog_modifier", 1.0)))
 	if tile["has_city"]:
@@ -127,6 +138,7 @@ def scar_tile(db, tile, spec, rng):
 	return 0
 
 
+# volcano and flood dump resources on the ring outside the blast
 def enrich_ring(db, spec, hit_refs, adjacency, allowed, by_ref):
 	bonus = int(spec.get("enriches_ring", 0))
 	if bonus <= 0:
@@ -138,6 +150,7 @@ def enrich_ring(db, spec, hit_refs, adjacency, allowed, by_ref):
 			db.execute("UPDATE Territory SET resource_value = resource_value + ? WHERE territory_id = ? AND terrain_type <> 'destroyed'", (bonus, tile["territory_id"]))
 
 
+# roll each turn, pick a type, then wreck the tiles it lands on
 def roll_disaster(db, game, config, adjacency, log, rng=None):
 	rng = rng or random
 	if game["current_turn"] < setting(config, DISASTER_DEFAULTS, "disaster_first_turn") or rng.random() >= setting(config, DISASTER_DEFAULTS, "disaster_chance"):
@@ -181,39 +194,47 @@ def roll_disaster(db, game, config, adjacency, log, rng=None):
 	return {"key": key, "tiles": len(hit)}
 
 
+# recent disasters for the sidebar
 def disaster_log(db, game_id, limit=5):
 	roster = load_disasters()
 	rows = db.execute("SELECT d.disaster_id, d.turn_number, d.disaster_type, COUNT(dt.territory_id) AS tiles FROM DisasterEvent d LEFT JOIN DisasterTerritory dt ON dt.disaster_id = d.disaster_id WHERE d.game_id = ? GROUP BY d.disaster_id ORDER BY d.turn_number DESC, d.disaster_id DESC LIMIT ?", (game_id, limit)).fetchall()
 	return [dict(row, name=roster.get(row["disaster_type"], {}).get("name", row["disaster_type"]), message=roster.get(row["disaster_type"], {}).get("message", "")) for row in rows]
 
 
+# low reputation makes every agreement dearer
 def cost_modifier(reputation):
 	return round(2.0 - (max(0, min(100, reputation)) / 100.0), 2)
 
 
+# base price scaled by how much people trust you
 def pact_cost(kind, reputation):
 	return int(round(PACT_COST.get(kind, 0) * cost_modifier(reputation)))
 
 
+# how many resources a player has
 def purse(db, game_id, user_id):
 	row = db.execute("SELECT resources FROM GamePlayer WHERE game_id = ? AND user_id = ?", (game_id, user_id)).fetchone()
 	return row["resources"] if row else 0
 
 
+# reputation is on the user not the game, follows you between games
 def reputation_of(db, user_id):
 	row = db.execute("SELECT reputation FROM User WHERE user_id = ?", (user_id,)).fetchone()
 	return row["reputation"] if row else 50
 
 
+# active pact between two players, alliance wins over a plain pact
 def standing_pact(db, game_id, a, b):
 	return db.execute("SELECT * FROM DiplomacyAgreement WHERE game_id = ? AND status = 'active' AND agreement_type IN ('non_aggression', 'alliance') AND ((proposer_id = ? AND recipient_id = ?) OR (proposer_id = ? AND recipient_id = ?)) ORDER BY CASE agreement_type WHEN 'alliance' THEN 0 ELSE 1 END LIMIT 1", (game_id, a, b, b, a)).fetchone()
 
 
+# allied units can share a tile without fighting
 def are_allied(db, game_id, a, b):
 	pact = standing_pact(db, game_id, a, b)
 	return pact is not None and pact["agreement_type"] == "alliance"
 
 
+# offer a deal, checks the terms are actually payable
 def propose_pact(db, game, proposer_id, recipient_id, kind, turns, offer=0, request=0):
 	game_id = game["game_id"]
 	if kind not in PACT_KINDS:
@@ -252,6 +273,7 @@ def propose_pact(db, game, proposer_id, recipient_id, kind, turns, offer=0, requ
 	return []
 
 
+# accept or decline, trades move the resources right here
 def answer_pact(db, game, agreement_id, user_id, accept):
 	game_id = game["game_id"]
 	deal = db.execute("SELECT * FROM DiplomacyAgreement WHERE agreement_id = ? AND game_id = ? AND status = 'proposed'", (agreement_id, game_id)).fetchone()
@@ -286,6 +308,7 @@ def answer_pact(db, game, agreement_id, user_id, accept):
 	return []
 
 
+# pull back an offer nobody answered
 def withdraw_pact(db, game, agreement_id, user_id):
 	deal = db.execute("SELECT * FROM DiplomacyAgreement WHERE agreement_id = ? AND game_id = ? AND status = 'proposed'", (agreement_id, game["game_id"])).fetchone()
 	if deal is None or deal["proposer_id"] != user_id:
@@ -295,10 +318,12 @@ def withdraw_pact(db, game, agreement_id, user_id):
 	return []
 
 
+# the person on the far side of a deal
 def other_party(deal, user_id):
 	return deal["recipient_id"] if deal["proposer_id"] == user_id else deal["proposer_id"]
 
 
+# look up names for the log
 def usernames(db, ids):
 	found = {}
 	for user_id in set(ids):
@@ -307,6 +332,7 @@ def usernames(db, ids):
 	return found
 
 
+# mark it broken and take the reputation hit
 def break_pact(db, game, deal, breacher_id, log):
 	kind = deal["agreement_type"]
 	penalty = BREACH_PENALTY.get(kind, 10)
@@ -317,6 +343,7 @@ def break_pact(db, game, deal, breacher_id, log):
 	log.append(f"{names[breacher_id]} broke their {PACT_NAMES[kind].lower()} with {names[partner]} and lost {penalty} reputation.")
 
 
+# attacking someone you have a deal with counts as breaking it
 def detect_breaches(db, game, valid_orders, log):
 	for order in valid_orders:
 		if order["order_type"] != "attack" or not order["target_territory"]:
@@ -329,6 +356,7 @@ def detect_breaches(db, game, valid_orders, log):
 			break_pact(db, game, pact, order["player_id"], log)
 
 
+# tick durations down and expire the finished ones
 def age_pacts(db, game, log):
 	for deal in db.execute("SELECT * FROM DiplomacyAgreement WHERE game_id = ? AND status = 'active'", (game["game_id"],)).fetchall():
 		if deal["turns_remaining"] <= 0:
@@ -342,6 +370,7 @@ def age_pacts(db, game, log):
 	db.execute("UPDATE DiplomacyAgreement SET status = 'declined' WHERE game_id = ? AND status = 'proposed' AND created_turn < ?", (game["game_id"], game["current_turn"]))
 
 
+# everything the diplomacy panel needs
 def pact_board(db, game, user_id):
 	game_id = game["game_id"]
 	rows = db.execute("SELECT d.*, p.username AS proposer_name, r.username AS recipient_name FROM DiplomacyAgreement d JOIN User p ON p.user_id = d.proposer_id JOIN User r ON r.user_id = d.recipient_id WHERE d.game_id = ? AND (d.proposer_id = ? OR d.recipient_id = ?) ORDER BY d.agreement_id DESC", (game_id, user_id, user_id)).fetchall()
@@ -362,6 +391,7 @@ def pact_board(db, game, user_id):
 	return {"incoming": incoming, "outgoing": outgoing, "active": active, "history": past[:8], "partners": [dict(row) for row in partners], "reputation": reputation, "cost_modifier": cost_modifier(reputation), "costs": {kind: pact_cost(kind, reputation) for kind in PACT_KINDS}, "min_turns": MIN_PACT_TURNS, "max_turns": MAX_PACT_TURNS}
 
 
+# end a game and write win draw or loss on every player
 def finish(db, game_id, winner_id=None, drawn=()):
 	drawn = set(drawn)
 	db.execute("UPDATE Game SET status = 'complete', winner_id = ?, completed_at = datetime('now'), turn_deadline = NULL WHERE game_id = ?", (winner_id, game_id))
@@ -370,6 +400,7 @@ def finish(db, game_id, winner_id=None, drawn=()):
 		db.execute("UPDATE GamePlayer SET result = ? WHERE game_id = ? AND user_id = ?", (outcome, game_id, row["user_id"]))
 
 
+# who holds the most land, list because it can tie
 def territory_leaders(db, game_id):
 	rows = db.execute("SELECT gp.user_id, u.username, (SELECT COUNT(*) FROM Territory t WHERE t.game_id = gp.game_id AND t.owner_id = gp.user_id) AS held FROM GamePlayer gp JOIN User u ON u.user_id = gp.user_id WHERE gp.game_id = ? AND gp.is_eliminated = 0 ORDER BY held DESC", (game_id,)).fetchall()
 	if not rows:
@@ -378,6 +409,7 @@ def territory_leaders(db, game_id):
 	return [dict(row) for row in rows if row["held"] == best], best
 
 
+# everyone left so decide it on land, tie is a draw
 def abandon(db, game, log):
 	leaders, held = territory_leaders(db, game["game_id"])
 	if not leaders:
@@ -392,6 +424,7 @@ def abandon(db, game, log):
 	log.append(f"Everyone left. Drawn between {', '.join(row['username'] for row in leaders)} on {held} tiles each.")
 
 
+# kill off games nobody came back to, runs when anyone loads the dashboard
 def sweep_abandoned(db, force=False):
 	if force:
 		rows = db.execute("SELECT game_id, join_code FROM Game WHERE status IN ('lobby', 'active')").fetchall()
@@ -422,6 +455,7 @@ def sweep_abandoned(db, force=False):
 	return ended
 
 
+# why an order is illegal, or None if its fine
 def order_fault(order, adjacency, by_ref, crossings):
 	if order["order_type"] == "build":
 		if order["source_terrain"] == "destroyed":
@@ -473,6 +507,7 @@ def order_fault(order, adjacency, by_ref, crossings):
 	return None
 
 
+# check every order against the board as it actually is now
 def validate(db, game, log, adjacency=None, by_ref=None, crossings=frozenset()):
 	pending = db.execute("SELECT o.*, u.owner_id, u.unit_type, u.territory_id AS unit_at, u.layer AS unit_layer, s.layer AS source_layer, s.terrain_type AS source_terrain, s.map_territory_ref AS source_ref, t.terrain_type AS target_terrain, t.map_territory_ref AS target_ref, p.username AS player_name FROM Orders o LEFT JOIN Unit u ON u.unit_id = o.unit_id LEFT JOIN Territory s ON s.territory_id = o.source_territory LEFT JOIN Territory t ON t.territory_id = o.target_territory LEFT JOIN User p ON p.user_id = o.player_id WHERE o.game_id = ? AND o.turn_number = ? AND o.status = 'pending'", (game["game_id"], game["current_turn"])).fetchall()
 
@@ -487,6 +522,7 @@ def validate(db, game, log, adjacency=None, by_ref=None, crossings=frozenset()):
 	return valid
 
 
+# take resources off a player if they can afford it
 def charge(db, game, player_id, cost):
 	row = db.execute("SELECT resources FROM GamePlayer WHERE game_id = ? AND user_id = ?", (game["game_id"], player_id)).fetchone()
 	if row is None or row["resources"] < cost:
@@ -495,6 +531,7 @@ def charge(db, game, player_id, cost):
 	return True
 
 
+# build the units and improvements people paid for
 def apply_builds(db, game, orders, log):
 	for order in orders:
 		if order["order_type"] != "build":
@@ -534,10 +571,12 @@ def apply_builds(db, game, orders, log):
 			log.append(f"A {spec['name']} was completed.")
 
 
+# the one unit on a tile, only ever one now
 def occupant_of(db, game_id, territory_id):
 	return db.execute("SELECT unit_id, owner_id, unit_type, attack, defence, health FROM Unit WHERE game_id = ? AND territory_id = ? LIMIT 1", (game_id, territory_id)).fetchone()
 
 
+# take health off a unit, delete it if that killed it
 def hurt(db, unit_id, health, amount):
 	left = health - amount
 	if left <= 0:
@@ -547,6 +586,7 @@ def hurt(db, unit_id, health, amount):
 	return False
 
 
+# ranged attack, damage without moving in
 def bombard(db, game, order, log):
 	spec = world.get_unit(order["unit_type"])
 	target = occupant_of(db, game["game_id"], order["target_territory"])
@@ -558,6 +598,7 @@ def bombard(db, game, order, log):
 		log.append(f"{spec['name']} struck a defender at range.")
 
 
+# both sides take damage, attacker only moves in if it kills
 def melee(db, game, order, log):
 	attacker = db.execute("SELECT unit_id, owner_id, unit_type, attack, health FROM Unit WHERE unit_id = ?", (order["unit_id"],)).fetchone()
 	if attacker is None:
@@ -589,6 +630,7 @@ def melee(db, game, order, log):
 		log.append(f"{attacker_spec['name']} traded blows with a {defender_spec['name']} and held position.")
 
 
+# take ownership of a tile you moved onto
 def seize(db, game, territory_id, new_owner, log):
 	tile = db.execute("SELECT owner_id, has_city, is_capital FROM Territory WHERE territory_id = ?", (territory_id,)).fetchone()
 	if tile is None or tile["owner_id"] == new_owner:
@@ -603,6 +645,7 @@ def seize(db, game, territory_id, new_owner, log):
 		log.append(f"{names[new_owner]} captured a city from {names[tile['owner_id']]}.")
 
 
+# shooting first then melee then plain moves
 def resolve_orders(db, game, orders, adjacency, ref_of, log):
 	for order in orders:
 		if order["order_type"] != "attack":
@@ -635,11 +678,13 @@ def resolve_orders(db, game, orders, adjacency, ref_of, log):
 			seize(db, game, order["target_territory"], order["player_id"], log)
 
 
+# walking onto unclaimed land takes it
 def claim_empty(db, game):
 	for row in db.execute("SELECT t.territory_id, MIN(u.owner_id) AS claimant, COUNT(DISTINCT u.owner_id) AS sides FROM Territory t JOIN Unit u ON u.territory_id = t.territory_id WHERE t.game_id = ? AND t.owner_id IS NULL GROUP BY t.territory_id HAVING sides = 1", (game["game_id"],)).fetchall():
 		db.execute("UPDATE Territory SET owner_id = ? WHERE territory_id = ?", (row["claimant"], row["territory_id"]))
 
 
+# pay everyone from their land, drains the shared world pool
 def pay_income(db, game, log):
 	pool = db.execute("SELECT global_resources FROM Game WHERE game_id = ?", (game["game_id"],)).fetchone()["global_resources"]
 	for row in db.execute("SELECT gp.user_id, COALESCE(SUM(t.resource_value), 0) AS income FROM GamePlayer gp LEFT JOIN Territory t ON t.game_id = gp.game_id AND t.owner_id = gp.user_id WHERE gp.game_id = ? AND gp.is_eliminated = 0 GROUP BY gp.user_id ORDER BY gp.user_id", (game["game_id"],)).fetchall():
@@ -655,6 +700,7 @@ def pay_income(db, game, log):
 		log.append("The world's resources are exhausted. Income has stopped.")
 
 
+# wipe a player off the board
 def knock_out(db, game, user_id, reason, log):
 	db.execute("UPDATE GamePlayer SET is_eliminated = 1, submitted_turn = NULL WHERE game_id = ? AND user_id = ?", (game["game_id"], user_id))
 	db.execute("DELETE FROM Unit WHERE game_id = ? AND owner_id = ?", (game["game_id"], user_id))
@@ -662,6 +708,7 @@ def knock_out(db, game, user_id, reason, log):
 	log.append(f"{usernames(db, [user_id])[user_id]} {reason}")
 
 
+# lose your capital or run out of everything and youre done
 def check_elimination(db, game, log):
 	for player in db.execute("SELECT user_id FROM GamePlayer WHERE game_id = ? AND is_eliminated = 0", (game["game_id"],)).fetchall():
 		capital = db.execute("SELECT owner_id FROM Territory WHERE game_id = ? AND capital_of = ?", (game["game_id"], player["user_id"])).fetchone()
@@ -675,6 +722,7 @@ def check_elimination(db, game, log):
 			knock_out(db, game, player["user_id"], "has been eliminated.", log)
 
 
+# last one standing or enough of the map
 def check_victory(db, game, victory_share, log):
 	standing = db.execute("SELECT gp.user_id, u.username FROM GamePlayer gp JOIN User u ON u.user_id = gp.user_id WHERE gp.game_id = ? AND gp.is_eliminated = 0", (game["game_id"],)).fetchall()
 
@@ -698,6 +746,7 @@ def check_victory(db, game, victory_share, log):
 	return winner["user_id"]
 
 
+# the whole turn in order, this is algorithm 1 from the design doc
 def resolve_turn(db, game, map_row):
 	log = []
 	layout = world.get_layout(map_row, game)

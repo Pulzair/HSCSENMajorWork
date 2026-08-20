@@ -21,14 +21,17 @@ COLOURS = ["#E63946", "#457B9D", "#2A9D8F", "#E9C46A", "#8338EC", "#F4A261"]
 BOARD_CHOICES = (0, 12, 16, 20, 25)
 
 
+# register the blueprint
 def init_app(app):
 	app.register_blueprint(bp)
 
 
+# socketio room name for a game
 def room_of(game_id):
 	return f"game_{game_id}"
 
 
+# random 6 character join code, retry until its unique
 def new_code(db):
 	for _try in range(20):
 		code = "".join(secrets.choice(CODE_ALPHABET) for _char in range(6))
@@ -37,42 +40,51 @@ def new_code(db):
 	raise RuntimeError("Could not generate a unique join code")
 
 
+# first player colour not already taken in this lobby
 def free_colour(db, game_id):
 	taken = {row["player_colour"] for row in db.execute("SELECT player_colour FROM GamePlayer WHERE game_id = ?", (game_id,))}
 	return next((colour for colour in COLOURS if colour not in taken), None)
 
 
+# get a game row by its join code
 def fetch_game(db, code):
 	return db.execute("SELECT * FROM Game WHERE join_code = ?", (code,)).fetchone()
 
 
+# everyone in a game with their username and reputation
 def fetch_players(db, game_id):
 	return db.execute("SELECT gp.*, u.username, u.reputation FROM GamePlayer gp JOIN User u ON u.user_id = gp.user_id WHERE gp.game_id = ? ORDER BY gp.gameplayer_id", (game_id,)).fetchall()
 
 
+# pull one player out of the list
 def find_player(players, user_id):
 	return next((player for player in players if player["user_id"] == user_id), None)
 
 
+# the preset map row if there is one
 def fetch_map(db, game):
 	return None if game["map_id"] is None else db.execute("SELECT * FROM Map WHERE map_id = ?", (game["map_id"],)).fetchone()
 
 
+# max players, the map cap or 6 whichever is lower
 def capacity(db, game):
 	map_row = fetch_map(db, game)
 	return MAX_PLAYERS if map_row is None else min(map_row["max_players"], MAX_PLAYERS)
 
 
+# who has locked orders in, eliminated players dont count
 def submission_status(db, game):
 	rows = db.execute("SELECT gp.user_id, u.username, gp.is_eliminated, (gp.submitted_turn = ?) AS ready FROM GamePlayer gp JOIN User u ON u.user_id = gp.user_id WHERE gp.game_id = ? ORDER BY gp.gameplayer_id", (game["current_turn"], game["game_id"])).fetchall()
 	active = [row for row in rows if not row["is_eliminated"]]
 	return {"players": rows, "ready": sum(1 for row in active if row["ready"]), "total": len(active), "all_in": bool(active) and all(row["ready"] for row in active)}
 
 
+# special resources you own, unlocks horseman and catapult
 def held_resources(db, game_id, user_id):
 	return {row["natural_resource"] for row in db.execute("SELECT DISTINCT natural_resource FROM Territory WHERE game_id = ? AND owner_id = ? AND natural_resource IS NOT NULL", (game_id, user_id))}
 
 
+# every legal order for each of your units, sent to the browser
 def legal_moves(db, game, user_id, layout, adjacency, visible):
 	by_ref = {row["map_territory_ref"]: row for row in db.execute("SELECT territory_id, map_territory_ref, layer, terrain_type, natural_resource FROM Territory WHERE game_id = ?", (game["game_id"],))}
 	occupants = {}
@@ -131,6 +143,7 @@ def legal_moves(db, game, user_id, layout, adjacency, visible):
 	return moves
 
 
+# what each city or barracks can make, own tile or a neighbour
 def production_menu(db, game, user_id, adjacency=None, by_ref=None):
 	budget = db.execute("SELECT resources FROM GamePlayer WHERE game_id = ? AND user_id = ?", (game["game_id"], user_id)).fetchone()
 	budget = budget["resources"] if budget else 0
@@ -177,6 +190,7 @@ def production_menu(db, game, user_id, adjacency=None, by_ref=None):
 
 @bp.route("/lobby/create", methods=("POST",))
 @login_required
+# make a lobby and put the host in it
 def create():
 	db = get_db()
 	code = new_code(db)
@@ -189,6 +203,7 @@ def create():
 
 @bp.route("/lobby/join", methods=("POST",))
 @login_required
+# join a lobby by code
 def join():
 	code = request.form.get("code", "").strip().upper()
 	if not CODE_RE.match(code):
@@ -221,6 +236,7 @@ def join():
 
 @bp.route("/lobby/<code>")
 @login_required
+# the waiting room page
 def lobby(code):
 	code = code.upper()
 	db = get_db()
@@ -242,6 +258,7 @@ def lobby(code):
 
 @bp.route("/lobby/<code>/settings", methods=("POST",))
 @login_required
+# host changes the map, board size and turn timer
 def settings(code):
 	code = code.upper()
 	db = get_db()
@@ -268,6 +285,7 @@ def settings(code):
 
 @bp.route("/lobby/<code>/start", methods=("POST",))
 @login_required
+# generate the board if needed then flip the game to active
 def start(code):
 	code = code.upper()
 	db = get_db()
@@ -309,6 +327,7 @@ def start(code):
 
 @bp.route("/lobby/<code>/leave", methods=("POST",))
 @login_required
+# lobby only, mid game you resign instead
 def leave(code):
 	code = code.upper()
 	db = get_db()
@@ -336,6 +355,7 @@ def leave(code):
 
 @bp.route("/game/<code>")
 @login_required
+# the main play page, or the summary if the game is over
 def game(code):
 	code = code.upper()
 	db = get_db()
@@ -382,12 +402,14 @@ def game(code):
 	)
 
 
+# final scores for the summary page
 def standings_for(db, game_id):
 	return db.execute("SELECT u.username, gp.player_colour, gp.is_eliminated, gp.resources, gp.result, (SELECT COUNT(*) FROM Territory t WHERE t.game_id = gp.game_id AND t.owner_id = gp.user_id) AS territories, (SELECT COUNT(*) FROM Unit un WHERE un.game_id = gp.game_id AND un.owner_id = gp.user_id) AS units FROM GamePlayer gp JOIN User u ON u.user_id = gp.user_id WHERE gp.game_id = ? ORDER BY territories DESC, units DESC", (game_id,)).fetchall()
 
 
 @bp.route("/game/<code>/orders", methods=("POST",))
 @login_required
+# take the browsers order list, check every one, then store them
 def submit_orders(code):
 	code = code.upper()
 	db = get_db()
@@ -466,6 +488,7 @@ def submit_orders(code):
 
 @bp.route("/game/<code>/resolve", methods=("POST",))
 @login_required
+# called when the timer runs out, only one caller wins the race
 def force_resolve(code):
 	code = code.upper()
 	db = get_db()
@@ -487,6 +510,7 @@ def force_resolve(code):
 
 @bp.route("/game/<code>/resign", methods=("POST",))
 @login_required
+# quit an active game, units die and land goes neutral
 def resign(code):
 	code = code.upper()
 	db = get_db()
@@ -529,6 +553,7 @@ def resign(code):
 
 @bp.route("/game/<code>/pact", methods=("POST",))
 @login_required
+# offer someone a deal
 def propose_pact(code):
 	code = code.upper()
 	db = get_db()
@@ -548,6 +573,7 @@ def propose_pact(code):
 
 @bp.route("/game/<code>/pact/<int:agreement_id>", methods=("POST",))
 @login_required
+# accept decline or withdraw a deal
 def answer_pact(code, agreement_id):
 	code = code.upper()
 	db = get_db()
@@ -572,6 +598,7 @@ def answer_pact(code, agreement_id):
 
 
 @socketio.on("join_game")
+# put the socket in the games room so it gets updates
 def on_join_game(data):
 	if session.get("user_id") is None:
 		return

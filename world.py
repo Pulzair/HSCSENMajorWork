@@ -24,6 +24,7 @@ _roster = None
 _catalogue = None
 
 
+# read every json file in a folder and merge them into one dict
 def _load_dir(folder):
 	merged = {}
 	for path in sorted(folder.glob("*.json")):
@@ -32,6 +33,7 @@ def _load_dir(folder):
 	return merged
 
 
+# load the unit types from data/units, cached after the first read
 def load_roster(force=False):
 	global _roster
 	if _roster is None or force:
@@ -39,26 +41,31 @@ def load_roster(force=False):
 	return _roster
 
 
+# grab one unit spec by its key
 def get_unit(kind):
 	return load_roster().get(kind)
 
 
+# first layer in the list is the units native one
 def home_layer(kind):
 	spec = get_unit(kind)
 	return spec["layers"][0] if spec else None
 
 
+# more than one layer means it can cross between them
 def can_transition(kind):
 	spec = get_unit(kind)
 	return bool(spec) and len(spec["layers"]) > 1
 
 
+# unit types that can be built on a layer, cheapest first
 def buildable_in(layer):
 	roster = load_roster()
 	kinds = [key for key, spec in roster.items() if layer in spec["layers"]]
 	return sorted(kinds, key=lambda key: roster[key]["cost"])
 
 
+# checks both the layer and the terrain, water blocks land units etc
 def can_occupy(kind, layer, terrain):
 	spec = get_unit(kind)
 	if spec is None:
@@ -66,11 +73,13 @@ def can_occupy(kind, layer, terrain):
 	return layer in spec["layers"] and terrain in spec["terrain"]
 
 
+# whole roster grouped by layer for the guide page
 def roster_by_layer():
 	roster = load_roster()
 	return {layer: [dict(roster[key], key=key) for key in buildable_in(layer)] for layer in LAYERS}
 
 
+# load the tile improvements from data/improvements
 def load_catalogue(force=False):
 	global _catalogue
 	if _catalogue is None or force:
@@ -78,10 +87,12 @@ def load_catalogue(force=False):
 	return _catalogue
 
 
+# grab one improvement spec
 def get_improvement(key):
 	return load_catalogue().get(key)
 
 
+# improvement has to match both layer and terrain
 def improvement_fits(key, layer, terrain):
 	spec = get_improvement(key)
 	if spec is None:
@@ -89,17 +100,20 @@ def improvement_fits(key, layer, terrain):
 	return layer in spec["layers"] and terrain in spec["terrain"]
 
 
+# improvements you could build on a tile, cheapest first
 def improvement_options(layer, terrain):
 	catalogue = load_catalogue()
 	keys = [key for key in catalogue if improvement_fits(key, layer, terrain)]
 	return sorted(keys, key=lambda key: catalogue[key]["cost"])
 
 
+# barracks is the only one that lets you produce units
 def allows_production(key):
 	spec = get_improvement(key)
 	return bool(spec) and spec.get("allows_production", False)
 
 
+# improvements grouped by layer for the guide page
 def catalogue_by_layer():
 	catalogue = load_catalogue()
 	grouped = {}
@@ -109,6 +123,7 @@ def catalogue_by_layer():
 	return grouped
 
 
+# read all the map json files
 def read_config_files():
 	configs = []
 	for path in sorted(MAPS_DIR.glob("*.json")):
@@ -117,6 +132,7 @@ def read_config_files():
 	return configs
 
 
+# keep the board size between the min and max so the lobby cant break it
 def clamp_board(size):
 	try:
 		size = int(size)
@@ -125,6 +141,7 @@ def clamp_board(size):
 	return max(MIN_BOARD, min(MAX_BOARD, size))
 
 
+# cellular automata pass, makes the random noise clump into blobs
 def _smooth(cells, width, height, passes, birth, keep):
 	for _pass in range(passes):
 		nxt = {}
@@ -136,11 +153,13 @@ def _smooth(cells, width, height, passes, birth, keep):
 	return cells
 
 
+# random noise then smoothed, gives lakes and mountain ranges not static
 def _blobs(rng, width, height, density, passes=3, birth=5, keep=4):
 	cells = {(x, y): rng.random() < density for y in range(height) for x in range(width)}
 	return _smooth(cells, width, height, passes, birth, keep)
 
 
+# build a whole random map, terrain then transitions then spawns
 def generate_config(name, size, seed, players=6):
 	size = clamp_board(size)
 	rng = random.Random(seed)
@@ -242,6 +261,7 @@ def generate_config(name, size, seed, players=6):
 	}
 
 
+# turn the letter grid into numbered territories with x y and layer
 def parse_layout(config):
 	legend = config["legend"]
 	territories = {}
@@ -261,6 +281,7 @@ def parse_layout(config):
 	return {"config": config, "width": config["width"], "height": config["height"], "territories": territories, "grid": grid}
 
 
+# which tiles touch which, 8 directions plus the layer crossings
 def build_adjacency(layout):
 	grid = layout["grid"]
 	adjacency = {ref: set() for ref in layout["territories"]}
@@ -282,6 +303,7 @@ def build_adjacency(layout):
 	return {ref: sorted(neighbours) for ref, neighbours in adjacency.items()}
 
 
+# walk out from a tile spending the movement budget on terrain costs
 def reachable(start_ref, budget, kind, by_ref, adjacency):
 	home = by_ref[start_ref]["layer"]
 	best = {start_ref: 0}
@@ -306,6 +328,7 @@ def reachable(start_ref, budget, kind, by_ref, adjacency):
 	return best
 
 
+# tiles within x steps ignoring cost, used for ranged attacks
 def within_range(start_ref, reach, by_ref, adjacency):
 	home = by_ref[start_ref]["layer"]
 	seen, frontier = {start_ref}, [start_ref]
@@ -322,6 +345,7 @@ def within_range(start_ref, reach, by_ref, adjacency):
 	return seen
 
 
+# every tile you can change layer on, includes built gateways
 def transition_refs(layout, extra=()):
 	refs = set()
 	for x, y in layout["config"].get("transitions", []):
@@ -333,17 +357,20 @@ def transition_refs(layout, extra=()):
 	return refs
 
 
+# tiles where someone built a gateway improvement
 def gateway_refs(db, game_id):
 	rows = db.execute("SELECT map_territory_ref FROM Territory WHERE game_id = ? AND improvement IN (SELECT 'gateway')", (game_id,)).fetchall()
 	return {row["map_territory_ref"] for row in rows}
 
 
+# generated board if the game has one, otherwise the preset map
 def get_layout(map_row, game=None):
 	if game is not None and game["board_json"]:
 		return parse_layout(json.loads(game["board_json"]))
 	return parse_layout(json.loads(map_row["layout_json"]))
 
 
+# load the map files into the Map table, update if already there
 def sync_maps():
 	db = get_db()
 	names = []
@@ -360,6 +387,7 @@ def sync_maps():
 	return names
 
 
+# fill the board at game start and put everyone on their capital
 def seed_territories(db, game_id, layout):
 	for territory in layout["territories"].values():
 		db.execute("INSERT INTO Territory (game_id, map_territory_ref, layer, terrain_type, resource_value, natural_resource) VALUES (?, ?, ?, ?, ?, ?)", (game_id, territory["ref"], territory["layer"], territory["terrain"], territory["resources"], territory["natural_resource"]))
@@ -405,6 +433,7 @@ def seed_territories(db, game_id, layout):
 	db.execute("UPDATE Game SET global_resources = ? WHERE game_id = ?", (total, game_id))
 
 
+# every tile you can see from and how far it sees
 def vision_sources(db, game_id, user_id):
 	sources = {}
 	for row in db.execute("SELECT map_territory_ref FROM Territory WHERE game_id = ? AND owner_id = ?", (game_id, user_id)).fetchall():
@@ -418,6 +447,7 @@ def vision_sources(db, game_id, user_id):
 	return sources
 
 
+# spread out from each vision source, fog modifiers block sight
 def compute_visible(db, game_id, user_id, adjacency, fog_modifiers):
 	visible = set()
 	for origin, reach in vision_sources(db, game_id, user_id).items():
@@ -437,11 +467,13 @@ def compute_visible(db, game_id, user_id, adjacency, fog_modifiers):
 	return visible
 
 
+# tiles this player has seen at some point
 def explored_refs(db, game_id, user_id):
 	rows = db.execute("SELECT t.map_territory_ref FROM TerritorySeen s JOIN Territory t ON t.territory_id = s.territory_id WHERE s.game_id = ? AND s.user_id = ?", (game_id, user_id)).fetchall()
 	return {row["map_territory_ref"] for row in rows}
 
 
+# remember tiles so terrain stays visible after units move away
 def record_seen(db, game, user_id, visible, ref_to_id):
 	rows = [(game["game_id"], user_id, ref_to_id[ref], game["current_turn"]) for ref in visible if ref in ref_to_id]
 	if not rows:
@@ -450,6 +482,7 @@ def record_seen(db, game, user_id, visible, ref_to_id):
 	db.commit()
 
 
+# visible now, explored before, or never seen
 def fog_state(ref, visible, explored):
 	if ref in visible:
 		return "visible"
@@ -458,6 +491,7 @@ def fog_state(ref, visible, explored):
 	return "hidden"
 
 
+# everything the browser needs to draw the map, already fogged
 def build_board(db, game, map_row, viewer_id):
 	layout = get_layout(map_row, game)
 	rows = db.execute("SELECT t.territory_id, t.map_territory_ref, t.terrain_type, t.resource_value, t.has_city, t.is_capital, t.fog_modifier, t.improvement, t.natural_resource, t.owner_id, gp.player_colour, u.username AS owner_name FROM Territory t LEFT JOIN GamePlayer gp ON gp.game_id = t.game_id AND gp.user_id = t.owner_id LEFT JOIN User u ON u.user_id = t.owner_id WHERE t.game_id = ?", (game["game_id"],)).fetchall()
@@ -514,10 +548,12 @@ def build_board(db, game, map_row, viewer_id):
 
 
 @click.command("load-maps")
+# flask load-maps
 def load_maps_command():
 	names = sync_maps()
 	click.echo(f"Loaded {len(names)} map(s): {', '.join(names)}")
 
 
+# register the cli command
 def init_app(app):
 	app.cli.add_command(load_maps_command)
